@@ -27,9 +27,7 @@
             "input.word-link-answer-input_input__L6PK2"
         );
 
-        const button = document.querySelector(
-            "button.word-link-answer-input_submitBtn__VZ7YV"
-        );
+        const button = document.querySelector("svg.lucide.lucide-send")?.closest("button");
 
         if (!wordElem || !input || !button) return;
 
