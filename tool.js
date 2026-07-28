@@ -63,9 +63,50 @@
         console.log("Đã điền:", answer);
 
         setTimeout(() => {
-            button.click();
-            console.log("Đã gửi.");
-        }, 200);
+    button.focus();
+
+    // Pointer/Mouse events
+    [
+        "pointerover",
+        "pointerenter",
+        "mouseover",
+        "mouseenter",
+        "pointerdown",
+        "mousedown",
+        "pointerup",
+        "mouseup",
+        "click"
+    ].forEach(type => {
+        try {
+            const EventClass = type.startsWith("pointer") ? PointerEvent : MouseEvent;
+            button.dispatchEvent(new EventClass(type, {
+                bubbles: true,
+                cancelable: true,
+                composed: true
+            }));
+        } catch {}
+    });
+
+    // Keyboard Enter
+    ["keydown", "keypress", "keyup"].forEach(type => {
+        try {
+            button.dispatchEvent(new KeyboardEvent(type, {
+                key: "Enter",
+                code: "Enter",
+                keyCode: 13,
+                which: 13,
+                bubbles: true
+            }));
+        } catch {}
+    });
+
+    // Gọi click trực tiếp
+    try { button.click(); } catch {}
+    try { HTMLButtonElement.prototype.click.call(button); } catch {}
+    try { HTMLElement.prototype.click.call(button); } catch {}
+
+    console.log("Đã thử mọi cách gửi.");
+}, 200);
 
         lastQuestion = current;
     }
