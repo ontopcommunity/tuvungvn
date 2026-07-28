@@ -1,129 +1,150 @@
 (async () => {
-    const DICT_URL = "https://raw.githubusercontent.com/ontopcommunity/tuvungvn/refs/heads/main/tuvungvn.txt";
+    try {
+        console.log("Bắt đầu tải từ điển...");
+        const response = await fetch("https://raw.githubusercontent.com/ontopcommunity/tuvungvn/refs/heads/main/tuvungvn.txt");
+        const text = await response.text();
+        const dictionary = text.split('\n')
+            .map(line => line.trim())
+            .filter(line => line.length > 0 && line.includes(' '));
 
-    console.log("Đang tải từ điển...");
+        console.log("Tải thành công!");
+        console.log("Số lượng từ:", dictionary.length);
 
-    const dictText = await fetch(DICT_URL).then(r => r.text());
+        let currentTargetQuestion = "";
+        let usedAnswers = new Set();
+        let isProcessing = false;
 
-    const dictionary = dictText
-        .split(/\r?\n/)
-        .map(v => v.trim())
-        .filter(v => v && v.includes(" "));
+        const processQuestion = async () => {
+            if (isProcessing) return;
 
-    console.log("Đã tải", dictionary.length, "từ.");
+            try {
+                const wordElement = document.querySelector("a.word-detail_wordDetailWord__1DYml");
+                const inputElement = document.querySelector("input.word-link-answer-input_input__L6PK2");
+                const svgElement = document.querySelector("svg.lucide.lucide-send");
 
-    let lastQuestion = "";
+                if (!wordElement || !inputElement || !svgElement) return;
 
-    function randomWord(words) {
-        return words[Math.floor(Math.random() * words.length)];
-    }
+                const buttonElement = svgElement.closest("button");
+                if (!buttonElement) return;
 
-    function process() {
-        const wordElem = document.querySelector(
-            "a.word-detail_wordDetailWord__1DYml"
-        );
+                const currentQuestion = wordElement.textContent.trim();
+                if (!currentQuestion) return;
 
-        const input = document.querySelector(
-            "input.word-link-answer-input_input__L6PK2"
-        );
+                if (currentQuestion !== currentTargetQuestion) {
+                    currentTargetQuestion = currentQuestion;
+                    usedAnswers.clear();
+                    console.log("Câu hỏi hiện tại:", currentQuestion);
+                }
 
-        const button = document.querySelector("svg.lucide.lucide-send")?.closest("button");
+                const words = currentQuestion.split(/\s+/);
+                const lastWord = words[words.length - 1].toLowerCase();
 
-        if (!wordElem || !input || !button) return;
+                const validAnswers = dictionary.filter(phrase => {
+                    const phraseWords = phrase.toLowerCase().split(/\s+/);
+                    return phraseWords[0] === lastWord;
+                });
 
-        const current = wordElem.textContent.trim();
+                const availableAnswers = validAnswers.filter(ans => !usedAnswers.has(ans));
 
-        if (!current || current === lastQuestion) return;
+                if (availableAnswers.length === 0) return;
 
-        const parts = current.split(/\s+/);
+                isProcessing = true;
 
-        if (parts.length < 2) return;
+                const randomAnswer = availableAnswers[Math.floor(Math.random() * availableAnswers.length)];
+                usedAnswers.add(randomAnswer);
 
-        const lastWord = parts[parts.length - 1].toLowerCase();
+                console.log("Đáp án đã chọn:", randomAnswer);
 
-        const candidates = dictionary.filter(w => {
-            const p = w.toLowerCase().split(/\s+/);
-            return p[0] === lastWord;
-        });
+                inputElement.focus();
 
-        if (!candidates.length) {
-            console.log("Không tìm thấy từ bắt đầu bằng:", lastWord);
-            lastQuestion = current;
-            return;
-        }
+                const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
+                nativeInputValueSetter.call(inputElement, randomAnswer);
 
-        const answer = randomWord(candidates);
+                inputElement.dispatchEvent(new Event("input", { bubbles: true }));
+                inputElement.dispatchEvent(new Event("change", { bubbles: true }));
+                console.log("Đã nhập.");
 
-        input.focus();
-        input.value = answer;
+                await new Promise(resolve => setTimeout(resolve, 150));
 
-        input.dispatchEvent(new Event("input", { bubbles: true }));
-        input.dispatchEvent(new Event("change", { bubbles: true }));
+                const triggerEvent = (element, eventName, EventClass, options = {}) => {
+                    try {
+                        const event = new EventClass(eventName, { bubbles: true, cancelable: true, ...options });
+                        element.dispatchEvent(event);
+                        console.log(`Đã kích hoạt: ${eventName}`);
+                    } catch (e) {}
+                };
 
-        console.log("Đã điền:", answer);
+                try {
+                    buttonElement.focus();
+                    console.log("Đã kích hoạt: focus()");
+                } catch (e) {}
 
-        setTimeout(() => {
-    button.focus();
+                const pointerEvents = ["pointerover", "pointerenter", "pointermove", "pointerdown", "pointerup"];
+                pointerEvents.forEach(evt => triggerEvent(buttonElement, evt, PointerEvent));
 
-    // Pointer/Mouse events
-    [
-        "pointerover",
-        "pointerenter",
-        "mouseover",
-        "mouseenter",
-        "pointerdown",
-        "mousedown",
-        "pointerup",
-        "mouseup",
-        "click"
-    ].forEach(type => {
-        try {
-            const EventClass = type.startsWith("pointer") ? PointerEvent : MouseEvent;
-            button.dispatchEvent(new EventClass(type, {
-                bubbles: true,
-                cancelable: true,
-                composed: true
-            }));
-        } catch {}
-    });
+                const mouseEvents = ["mouseover", "mouseenter", "mousemove", "mousedown", "mouseup", "click", "dblclick", "contextmenu"];
+                mouseEvents.forEach(evt => triggerEvent(buttonElement, evt, MouseEvent));
 
-    // Keyboard Enter
-    ["keydown", "keypress", "keyup"].forEach(type => {
-        try {
-            button.dispatchEvent(new KeyboardEvent(type, {
-                key: "Enter",
-                code: "Enter",
-                keyCode: 13,
-                which: 13,
-                bubbles: true
-            }));
-        } catch {}
-    });
+                const keyEvents = ["keydown", "keypress", "keyup"];
+                keyEvents.forEach(evt => triggerEvent(buttonElement, evt, KeyboardEvent, { key: "Enter", code: "Enter", keyCode: 13 }));
+                keyEvents.forEach(evt => triggerEvent(buttonElement, evt, KeyboardEvent, { key: " ", code: "Space", keyCode: 32 }));
 
-    // Gọi click trực tiếp
-    try { button.click(); } catch {}
-    try { HTMLButtonElement.prototype.click.call(button); } catch {}
-    try { HTMLElement.prototype.click.call(button); } catch {}
+                try {
+                    if (typeof buttonElement.setPointerCapture === "function") {
+                        buttonElement.setPointerCapture(1);
+                        console.log("Đã kích hoạt: setPointerCapture()");
+                    }
+                } catch (e) {}
 
-    console.log("Đã thử mọi cách gửi.");
-}, 200);
+                try {
+                    if (typeof buttonElement.releasePointerCapture === "function") {
+                        buttonElement.releasePointerCapture(1);
+                        console.log("Đã kích hoạt: releasePointerCapture()");
+                    }
+                } catch (e) {}
 
-        lastQuestion = current;
-    }
+                try {
+                    buttonElement.click();
+                    console.log("Đã kích hoạt: button.click()");
+                } catch (e) {}
 
-    const observer = new MutationObserver(() => {
-        process();
-    });
+                try {
+                    HTMLButtonElement.prototype.click.call(buttonElement);
+                    console.log("Đã kích hoạt: HTMLButtonElement.prototype.click.call()");
+                } catch (e) {}
 
-    observer.observe(document.body, {
-        childList: true,
-        subtree: true,
-        characterData: true
-    });
+                try {
+                    HTMLElement.prototype.click.call(buttonElement);
+                    console.log("Đã kích hoạt: HTMLElement.prototype.click.call()");
+                } catch (e) {}
 
-    setInterval(process, 500);
+                const formElement = buttonElement.closest("form");
+                if (formElement) {
+                    try {
+                        formElement.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+                        console.log("Đã kích hoạt: form submit event");
+                    } catch (e) {}
+                    try {
+                        formElement.submit();
+                        console.log("Đã kích hoạt: form.submit()");
+                    } catch (e) {}
+                }
 
-    process();
+                console.log("Hoàn thành.");
 
-    console.log("Bot đang chạy...");
+                setTimeout(() => {
+                    isProcessing = false;
+                }, 1000);
+
+            } catch (error) {
+                isProcessing = false;
+            }
+        };
+
+        const observer = new MutationObserver(processQuestion);
+        observer.observe(document.body, { childList: true, subtree: true });
+
+        setInterval(processQuestion, 1000);
+
+    } catch (error) {}
 })();
