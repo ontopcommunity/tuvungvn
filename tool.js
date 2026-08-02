@@ -1,195 +1,279 @@
 (async () => {
     try {
-        let oldPopup = document.getElementById("mini-console-popup");
-        if (oldPopup) oldPopup.remove();
-        let popup = document.createElement("div");
-        popup.id = "mini-console-popup";
-        popup.style.cssText = "position:fixed;top:20px;right:20px;z-index:9999999;background:rgba(15,15,15,0.95);color:#fff;border-radius:8px;font-family:sans-serif;font-size:13px;box-shadow:0 4px 15px rgba(0,0,0,0.5);border:1px solid #333;width:300px;display:flex;flex-direction:column;transition:all 0.2s;backdrop-filter:blur(5px);";
-        let isMinimized = false;
-        let header = document.createElement("div");
-        header.style.cssText = "background:#222;padding:8px 12px;cursor:grab;font-weight:bold;color:#fff;border-bottom:1px solid #333;border-radius:8px 8px 0 0;user-select:none;display:flex;justify-content:space-between;align-items:center;";
-        let titleSpan = document.createElement("span");
-        titleSpan.innerHTML = `Bot Nối Từ <span style="color:#38bdf8;font-size:11px;">v2.3</span>`;
-        let minBtn = document.createElement("span");
-        minBtn.innerText = "[-]";
-        minBtn.style.cssText = "cursor:pointer;color:#38bdf8;font-size:14px;line-height:1;";
-        header.appendChild(titleSpan);
-        header.appendChild(minBtn);
-        popup.appendChild(header);
-
-        let bodyContent = document.createElement("div");
-        bodyContent.style.display = "flex";
-        bodyContent.style.flexDirection = "column";
-
-        let mainMenu = document.createElement("div");
-        let userInfoBox = document.createElement("div");
-        userInfoBox.style.cssText = "padding:12px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #333;background:#1a1a1a;";
-        userInfoBox.innerHTML = `
-            <div style="display:flex;align-items:center;gap:8px;">
-                <div style="width:30px;height:30px;background:#444;border-radius:50%;overflow:hidden;"><img id="bot-avatar" src="" style="width:100%;height:100%;display:none;object-fit:cover;"></div>
-                <span id="bot-username" style="font-weight:bold;color:#fff;">Đang tải...</span>
-            </div>
-            <div style="display:flex;align-items:center;gap:4px;color:#fbbf24;font-weight:bold;">
-                <span id="bot-coins">0</span>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6"></circle><path d="M18.09 10.37A6 6 0 1 1 10.34 18"></path><path d="M7 6h1v4"></path><path d="m16.71 13.88.7.71-2.82 2.82"></path></svg>
-            </div>
-        `;
-        mainMenu.appendChild(userInfoBox);
-
-        let modeContainer = document.createElement("div");
-        modeContainer.style.cssText = "padding:10px;display:grid;grid-template-columns:1fr 1fr;gap:6px;background:#111;";
-        mainMenu.appendChild(modeContainer);
-
-        let activeView = document.createElement("div");
-        activeView.style.cssText = "display:none;flex-direction:column;";
-        let activeHeader = document.createElement("div");
-        activeHeader.style.cssText = "display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:#1a1a1a;border-bottom:1px solid #333;";
-        let activeModeName = document.createElement("span");
-        activeModeName.style.cssText = "font-weight:bold;color:#38bdf8;";
-        let stopBtn = document.createElement("button");
-        stopBtn.innerText = "⏹ DỪNG";
-        stopBtn.style.cssText = "background:#dc2626;color:#fff;border:none;padding:4px 8px;cursor:pointer;font-weight:bold;border-radius:4px;font-size:11px;";
-        activeHeader.appendChild(activeModeName);
-        activeHeader.appendChild(stopBtn);
-        activeView.appendChild(activeHeader);
-
-        let arenaProgressBox = document.createElement("div");
-        arenaProgressBox.style.cssText = "display:none;padding:6px 10px;background:#2a2a2a;border-bottom:1px solid #444;text-align:center;font-weight:bold;font-size:11px;color:#fbbf24;";
-        activeView.appendChild(arenaProgressBox);
-
-        let gameStatusBox = document.createElement("div");
-        gameStatusBox.style.cssText = "padding:12px;background:#111;min-height:80px;display:flex;flex-direction:column;gap:8px;";
-        let qBox = document.createElement("div");
-        qBox.innerHTML = `<span style="color:#888;">Hỏi:</span> <span id="bot-q-text" style="color:#fff;font-weight:bold;">...</span>`;
-        let aBox = document.createElement("div");
-        aBox.innerHTML = `<span style="color:#888;">Đáp:</span> <span id="bot-a-text" style="color:#4ade80;font-weight:bold;">...</span>`;
-        gameStatusBox.appendChild(qBox);
-        gameStatusBox.appendChild(aBox);
-        activeView.appendChild(gameStatusBox);
-
-        bodyContent.appendChild(mainMenu);
-        bodyContent.appendChild(activeView);
-        popup.appendChild(bodyContent);
-        document.body.appendChild(popup);
-
-        minBtn.onclick = () => {
-            isMinimized = !isMinimized;
-            bodyContent.style.display = isMinimized ? "none" : "flex";
-            minBtn.innerText = isMinimized ? "[+]" : "[-]";
-        };
-
-        let isDragging = false, startX, startY, initialLeft, initialTop;
-        header.onmousedown = (e) => {
-            if (e.target === minBtn) return;
-            isDragging = true;
-            startX = e.clientX;
-            startY = e.clientY;
-            const rect = popup.getBoundingClientRect();
-            initialLeft = rect.left;
-            initialTop = rect.top;
-            header.style.cursor = "grabbing";
-            popup.style.bottom = "auto";
-            popup.style.right = "auto";
-        };
-        document.addEventListener('mousemove', (e) => {
-            if (!isDragging) return;
-            popup.style.left = (initialLeft + (e.clientX - startX)) + "px";
-            popup.style.top = (initialTop + (e.clientY - startY)) + "px";
-        });
-        document.addEventListener('mouseup', () => {
-            isDragging = false;
-            header.style.cursor = "grab";
-        });
-
-        let isRunning = false;
-        let currentMode = "";
-        let currentModeKeywords = [];
-        let dictionary = [];
-        let isProcessing = false;
-
-        const updateUserInfo = () => {
-            const nameEl = document.querySelector('div[aria-label="Thông tin người chơi"] span.has-text-weight-semibold span');
-            const coinEl = document.querySelector('div[aria-label="Mở Tạp Hóa"] span.has-text-weight-bold');
-            const avatarEl = document.querySelector('div[aria-label="Thông tin người chơi"] img');
-            if (nameEl) document.getElementById("bot-username").innerText = nameEl.innerText;
-            if (coinEl) document.getElementById("bot-coins").innerText = coinEl.innerText;
-            if (avatarEl) {
-                let img = document.getElementById("bot-avatar");
-                img.src = avatarEl.src;
-                img.style.display = "block";
-            }
-        };
-
-        const updateGameUI = (q, a, type, arenaNum) => {
-            document.getElementById("bot-q-text").innerText = q || "...";
-            document.getElementById("bot-a-text").innerText = a || "...";
-            if (currentMode === "Đấu trường") {
-                arenaProgressBox.style.display = "block";
-                arenaProgressBox.innerText = `Câu ${arenaNum || "?"}/10 - ${type || "Đang tìm..."}`;
-            } else {
-                arenaProgressBox.style.display = "none";
-            }
-        };
-
-        const triggerEvent = (element, eventName, EventClass, options = {}) => {
+        const originalFetch = window.fetch;
+        window.fetch = async function () {
+            const response = await originalFetch.apply(this, arguments);
             try {
-                const event = new EventClass(eventName, { bubbles: true, cancelable: true, ...options });
-                element.dispatchEvent(event);
-            } catch (e) {}
+                const resource = arguments[0];
+                const url = typeof resource === 'string' ? resource : (resource instanceof Request ? resource.url : '');
+                if (url.includes('/api/v1/user/get')) {
+                    const clone = response.clone();
+                    clone.json().then(data => {
+                        if (data && data.name !== undefined) {
+                            window.dispatchEvent(new CustomEvent('updateUserInfo', { detail: data }));
+                        }
+                    }).catch(() => {});
+                }
+            } catch (error) {}
+            return response;
         };
 
-        const startMode = (text, searchKeywords) => {
-            if (dictionary.length === 0) return;
-            currentMode = text;
-            currentModeKeywords = searchKeywords;
-            mainMenu.style.display = "none";
-            activeView.style.display = "flex";
-            activeModeName.innerText = `▶ ${text}`;
-            updateGameUI("...", "...", "", "");
-            isRunning = true;
-            
-            const realBtns = Array.from(document.querySelectorAll("button, a, div[role='button']"));
-            const target = realBtns.find(el => {
-                const t = el.textContent.toLowerCase().trim();
-                return searchKeywords.some(kw => t === kw || t.includes(kw));
+        const originalXHR = XMLHttpRequest.prototype.open;
+        XMLHttpRequest.prototype.open = function () {
+            this.addEventListener('load', function () {
+                try {
+                    if (this.responseURL.includes('/api/v1/user/get')) {
+                        const data = JSON.parse(this.responseText);
+                        if (data && data.name !== undefined) {
+                            window.dispatchEvent(new CustomEvent('updateUserInfo', { detail: data }));
+                        }
+                    }
+                } catch (error) {}
             });
-            if (target) {
-                try { target.focus(); } catch(e){}
-                ["mouseover", "mousedown", "mouseup", "click"].forEach(evt => triggerEvent(target, evt, MouseEvent));
-                try { target.click(); } catch(e){}
-                try { HTMLElement.prototype.click.call(target); } catch(e){}
+            originalXHR.apply(this, arguments);
+        };
+
+        const styleSheet = document.createElement("style");
+        styleSheet.textContent = `
+            @keyframes rainbowBorderAnim {
+                0% { border-color: #ff0000; box-shadow: 0 0 8px #ff0000; }
+                17% { border-color: #ff8000; box-shadow: 0 0 8px #ff8000; }
+                33% { border-color: #ffff00; box-shadow: 0 0 8px #ffff00; }
+                50% { border-color: #00ff00; box-shadow: 0 0 8px #00ff00; }
+                67% { border-color: #0000ff; box-shadow: 0 0 8px #0000ff; }
+                83% { border-color: #8000ff; box-shadow: 0 0 8px #8000ff; }
+                100% { border-color: #ff0000; box-shadow: 0 0 8px #ff0000; }
             }
+            .rainbow-border {
+                animation: rainbowBorderAnim 2s linear infinite;
+                border: 2px solid;
+            }
+        `;
+        document.head.appendChild(styleSheet);
+
+        const popupId = 'bot-noi-tu-center-popup';
+        const oldPopup = document.getElementById(popupId);
+        if (oldPopup) oldPopup.remove();
+
+        const popup = document.createElement('div');
+        popup.id = popupId;
+        Object.assign(popup.style, {
+            position: 'fixed',
+            top: '15px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: '9999999',
+            background: 'rgba(20, 20, 20, 0.95)',
+            color: '#fff',
+            fontFamily: 'sans-serif',
+            borderRadius: '8px',
+            display: 'flex',
+            flexDirection: 'column',
+            userSelect: 'none',
+            overflow: 'hidden',
+            transition: 'all 0.2s ease'
+        });
+
+        const header = document.createElement('div');
+        header.className = 'rainbow-border';
+        Object.assign(header.style, {
+            padding: '8px 20px',
+            background: '#111',
+            textAlign: 'center',
+            fontWeight: 'bold',
+            color: '#0ff',
+            cursor: 'pointer',
+            fontSize: '13px',
+            whiteSpace: 'nowrap',
+            borderRadius: 'inherit'
+        });
+        header.textContent = 'Bot Nối Từ';
+
+        const body = document.createElement('div');
+        Object.assign(body.style, {
+            padding: '12px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px',
+            borderLeft: '1px solid #333',
+            borderRight: '1px solid #333',
+            borderBottom: '1px solid #333',
+            borderBottomLeftRadius: '8px',
+            borderBottomRightRadius: '8px',
+            background: 'rgba(20, 20, 20, 0.95)'
+        });
+
+        const statusText = document.createElement('div');
+        Object.assign(statusText.style, {
+            fontSize: '11px',
+            textAlign: 'center',
+            color: '#aaa',
+            marginBottom: '4px',
+            fontWeight: 'bold'
+        });
+        statusText.textContent = 'Auto Play: OFF';
+
+        const userInfoBox = document.createElement('div');
+        Object.assign(userInfoBox.style, {
+            background: '#2a2a2a',
+            border: '1px solid #444',
+            borderRadius: '4px',
+            padding: '8px',
+            fontSize: '11px',
+            display: 'none',
+            flexDirection: 'column',
+            position: 'relative',
+            gap: '4px'
+        });
+
+        const closeUserBtn = document.createElement('span');
+        closeUserBtn.textContent = '✖';
+        Object.assign(closeUserBtn.style, {
+            position: 'absolute',
+            top: '4px',
+            right: '6px',
+            cursor: 'pointer',
+            color: '#f55',
+            fontWeight: 'bold',
+            fontSize: '12px'
+        });
+        closeUserBtn.onclick = () => {
+            userInfoBox.style.display = 'none';
         };
 
-        const createModeBtn = (text, searchKeywords) => {
-            let b = document.createElement("button");
-            b.innerText = text;
-            b.style.cssText = "background:#222;color:#fff;border:1px solid #444;padding:8px;cursor:pointer;font-size:12px;border-radius:4px;font-weight:bold;";
-            b.onmouseover = () => b.style.background = "#333";
-            b.onmouseout = () => b.style.background = "#222";
-            b.onclick = () => startMode(text, searchKeywords);
-            return b;
-        };
+        const userNameEl = document.createElement('div');
+        const userLevelEl = document.createElement('div');
+        const userCoinEl = document.createElement('div');
 
-        modeContainer.appendChild(createModeBtn("Ngẫu nhiên", ["ngẫu nhiên"]));
-        modeContainer.appendChild(createModeBtn("Nối từ", ["nối từ"]));
-        modeContainer.appendChild(createModeBtn("Nối từ MR", ["nối từ mở rộng", "mở rộng"]));
-        modeContainer.appendChild(createModeBtn("Đấu trường", ["đấu trường chữ nghĩa", "đấu trường"]));
+        userInfoBox.appendChild(closeUserBtn);
+        userInfoBox.appendChild(userNameEl);
+        userInfoBox.appendChild(userLevelEl);
+        userInfoBox.appendChild(userCoinEl);
+
+        window.addEventListener('updateUserInfo', (e) => {
+            const { name, level, coin } = e.detail;
+            userNameEl.innerHTML = `<span style="color:#aaa">Tên:</span> <span style="color:#fff;font-weight:bold">${name}</span>`;
+            userLevelEl.innerHTML = `<span style="color:#aaa">Cấp:</span> <span style="color:#ff0;font-weight:bold">${level}</span>`;
+            userCoinEl.innerHTML = `<span style="color:#aaa">Xu:</span> <span style="color:#0f0;font-weight:bold">${coin}</span>`;
+            userInfoBox.style.display = 'flex';
+        });
+
+        const grid = document.createElement('div');
+        Object.assign(grid.style, {
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: '6px'
+        });
+
+        const modes = [
+            { classNames: ["", "multiple-mode-lobby_rankedBtnWORD_LINK__2vwAn"], title: "Nối Từ" },
+            { classNames: ["", "multiple-mode-lobby_rankedBtnWORD_LINK_CARD__K12WX"], title: "Nối Từ Mở Rộng" },
+            { classNames: ["ranked-lobby_rankCardMIXED__RiEd5", "multiple-mode-lobby_rankedBtnMIXED__2NMtP"], title: "Đấu Trường Chữ Nghĩa" },
+            { classNames: ["ranked-lobby_rankCardRandom__Br_il", "multiple-mode-lobby_rankedBtnRandom__c1EwH"], title: "Ngẫu nhiên" }
+        ];
+
+        let activeMode = null;
+        let isMinimized = false;
+
+        const stopBtn = document.createElement('button');
+        stopBtn.textContent = '⏹ DỪNG';
+        Object.assign(stopBtn.style, {
+            background: '#800000',
+            color: '#fff',
+            border: '1px solid #f00',
+            padding: '8px',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontSize: '11px',
+            fontWeight: 'bold',
+            marginTop: '2px',
+            display: 'none'
+        });
+
+        modes.forEach(mode => {
+            const btn = document.createElement('button');
+            btn.className = 'rainbow-border';
+            btn.textContent = mode.title;
+            Object.assign(btn.style, {
+                background: '#2a2a2a',
+                color: '#fff',
+                padding: '8px 4px',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '11px',
+                fontWeight: 'bold',
+                transition: 'background 0.2s'
+            });
+            btn.onmouseover = () => btn.style.background = '#3a3a3a';
+            btn.onmouseout = () => btn.style.background = '#2a2a2a';
+            btn.onclick = () => {
+                activeMode = mode;
+                statusText.textContent = `Auto Play: ${mode.title}`;
+                statusText.style.color = '#0f0';
+                grid.style.display = 'none';
+                stopBtn.style.display = 'block';
+            };
+            grid.appendChild(btn);
+        });
 
         stopBtn.onclick = () => {
-            isRunning = false;
-            currentMode = "";
-            currentModeKeywords = [];
-            activeView.style.display = "none";
-            mainMenu.style.display = "block";
-            updateUserInfo();
+            activeMode = null;
+            statusText.textContent = 'Auto Play: OFF';
+            statusText.style.color = '#aaa';
+            grid.style.display = 'grid';
+            stopBtn.style.display = 'none';
         };
 
-        fetch("https://raw.githubusercontent.com/ontopcommunity/tuvungvn/refs/heads/main/tuvungvn.txt")
-        .then(res => res.text())
-        .then(text => {
-            dictionary = text.split('\n').map(line => line.trim()).filter(line => line.length > 0 && line.includes(' '));
-        }).catch(e => {});
+        body.appendChild(statusText);
+        body.appendChild(userInfoBox);
+        body.appendChild(grid);
+        body.appendChild(stopBtn);
+        popup.appendChild(header);
+        popup.appendChild(body);
+        document.body.appendChild(popup);
+
+        header.onclick = () => {
+            isMinimized = !isMinimized;
+            if (isMinimized) {
+                body.style.display = 'none';
+                header.style.borderBottomLeftRadius = '8px';
+                header.style.borderBottomRightRadius = '8px';
+            } else {
+                body.style.display = 'flex';
+                header.style.borderBottomLeftRadius = '0';
+                header.style.borderBottomRightRadius = '0';
+            }
+        };
+
+        const response = await fetch("https://raw.githubusercontent.com/ontopcommunity/tuvungvn/refs/heads/main/tuvungvn.txt");
+        const text = await response.text();
+        const dictionary = text.split('\n')
+            .map(line => line.trim())
+            .filter(line => line.length > 0 && line.includes(' '));
+
+        const apiCache = new Map();
+
+        const fetchApiSuggestions = async (q) => {
+            if (!q) return [];
+            const key = q.toLowerCase();
+            if (apiCache.has(key)) return apiCache.get(key);
+            
+            try {
+                const res = await fetch(`https://dictionaryvip.vercel.app/api/v1/suggest?q=${encodeURIComponent(key)}`);
+                const data = await res.json();
+                if (data && Array.isArray(data.suggestions)) {
+                    const filtered = data.suggestions.filter(s => {
+                        const words = s.trim().split(/\s+/);
+                        return words.length === 2;
+                    });
+                    apiCache.set(key, filtered);
+                    return filtered;
+                }
+            } catch (e) {}
+            
+            apiCache.set(key, []);
+            return [];
+        };
 
         let currentTargetQuestion = "";
         let usedAnswers = new Set();
@@ -198,167 +282,264 @@
         let lastVaTuHash = "";
         let usedVaTuAnswers = new Set();
         let lastPoliceHash = "";
-        let pendingRestartTime = 0;
+        let isProcessing = false;
+        let lastLobbyBtnTime = 0;
+
         const escapeRegExp = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-        const detectArenaStatus = () => {
-            let num = "?";
-            const textNodes = Array.from(document.querySelectorAll("span, div, p"));
-            const qNode = textNodes.find(n => n.textContent && n.textContent.match(/Câu(?: hỏi)?\s*(\d+)\s*\/\s*10/i));
-            if (qNode) {
-                const match = qNode.textContent.match(/(\d+)\s*\/\s*10/);
-                if (match) num = match[1];
-            }
-            return num;
-        };
-
         const processQuestion = async () => {
-            if (!isRunning || isProcessing) return;
+            if (isProcessing) return;
             isProcessing = true;
-            try {
-                const policeButtons = document.querySelectorAll("button.police-answer-input_wordButton__P3fhW");
-                const vaTuInput = document.querySelector("input.va-tu-answer-input_input__N9YZm");
-                const chars = document.querySelectorAll(".stick-answer-input_character__N56_X");
-                const wordElement = document.querySelector("a.word-detail_wordDetailWord__1DYml");
-                const isGameActive = policeButtons.length > 0 || vaTuInput || chars.length > 0 || wordElement;
 
-                if (!isGameActive) {
-                    if (pendingRestartTime === 0) {
-                        const elements = document.querySelectorAll("h1, h2, h3, h4, p, span, div");
-                        let isGameOver = false;
-                        for (let i = 0; i < elements.length; i++) {
-                            const txt = elements[i].textContent;
-                            if (txt && (txt.toLowerCase().includes("thua cuộc") || txt.toLowerCase().includes("chiến thắng"))) {
-                                isGameOver = true;
-                                break;
-                            }
+            try {
+                const triggerEvent = (element, eventName, EventClass, options = {}) => {
+                    try {
+                        const event = new EventClass(eventName, { bubbles: true, cancelable: true, ...options });
+                        element.dispatchEvent(event);
+                    } catch (e) {}
+                };
+
+                if (activeMode && Date.now() - lastLobbyBtnTime > 500) {
+                    let targetBtn = null;
+                    for (const cls of activeMode.classNames) {
+                        if (cls) {
+                            targetBtn = document.querySelector(`.${cls}`);
+                            if (targetBtn) break;
                         }
-                        if (isGameOver) {
-                            pendingRestartTime = Date.now() + 4000;
-                        }
-                    } else if (Date.now() > pendingRestartTime) {
-                        const realBtns = Array.from(document.querySelectorAll("button, a, div[role='button']"));
-                        const targetBtn = realBtns.find(el => {
-                            const t = el.textContent.toLowerCase().trim();
-                            return currentModeKeywords.some(kw => t === kw || t.includes(kw));
-                        });
-                        if (targetBtn) {
-                            try { targetBtn.focus(); } catch (e) {}
-                            ["mouseover", "mousedown", "mouseup", "click"].forEach(evt => triggerEvent(targetBtn, evt, MouseEvent));
-                            try { targetBtn.click(); } catch (e) {}
-                            try { HTMLElement.prototype.click.call(targetBtn); } catch(e){}
-                        }
-                        pendingRestartTime = 0;
                     }
-                    isProcessing = false;
-                    return;
+                    if (!targetBtn) {
+                        const allInteractables = Array.from(document.querySelectorAll("button, div[role='button'], .ranked-lobby_rankCard__qP4hM, a, [class*='multiple-mode-lobby']"));
+                        targetBtn = allInteractables.find(b => {
+                            const t = b.textContent;
+                            return t && t.trim().toLowerCase() === activeMode.title.toLowerCase();
+                        });
+                    }
+
+                    if (targetBtn) {
+                        lastLobbyBtnTime = Date.now();
+                        triggerEvent(targetBtn, "mouseover", MouseEvent);
+                        triggerEvent(targetBtn, "mousedown", MouseEvent);
+                        triggerEvent(targetBtn, "mouseup", MouseEvent);
+                        triggerEvent(targetBtn, "click", MouseEvent);
+                        try { targetBtn.click(); } catch (e) {}
+                        try { HTMLButtonElement.prototype.click.call(targetBtn); } catch (e) {}
+                        try { HTMLElement.prototype.click.call(targetBtn); } catch (e) {}
+                    }
                 }
 
-                pendingRestartTime = 0;
-                let arenaNum = currentMode === "Đấu trường" ? detectArenaStatus() : "";
-
+                const policeButtons = document.querySelectorAll("button.police-answer-input_wordButton__P3fhW");
                 if (policeButtons.length > 0) {
                     const options = Array.from(policeButtons).map(btn => ({
                         element: btn,
                         text: btn.querySelector(".police-answer-input_wordText__lEN0Q")?.textContent.trim().toLowerCase() || btn.textContent.trim().toLowerCase()
                     }));
+
                     const currentHash = options.map(o => o.text).sort().join("|");
-                    const qText = options.map(o => o.text).join(" | ");
+
                     if (currentHash !== lastPoliceHash) {
                         lastPoliceHash = currentHash;
-                        const correctOption = options.find(o => dictionary.includes(o.text));
+                        let correctOption = options.find(o => dictionary.includes(o.text));
+
+                        if (!correctOption) {
+                            for (const opt of options) {
+                                const apiRes = await fetchApiSuggestions(opt.text);
+                                if (apiRes.some(s => s.toLowerCase() === opt.text)) {
+                                    correctOption = opt;
+                                    break;
+                                }
+                            }
+                        }
+
                         if (correctOption) {
-                            updateGameUI(qText, correctOption.text, "Cảnh sát chính tả", arenaNum);
                             const el = correctOption.element;
+
                             try { el.focus(); } catch (e) {}
-                            ["mouseover", "mouseenter", "mousemove", "mousedown", "mouseup", "click"].forEach(evt => triggerEvent(el, evt, MouseEvent));
+
+                            const pointerEvents = ["pointerover", "pointerenter", "pointermove", "pointerdown", "pointerup"];
+                            pointerEvents.forEach(evt => triggerEvent(el, evt, PointerEvent));
+
+                            const mouseEvents = ["mouseover", "mouseenter", "mousemove", "mousedown", "mouseup", "click"];
+                            mouseEvents.forEach(evt => triggerEvent(el, evt, MouseEvent));
+
                             try { el.click(); } catch (e) {}
-                            setTimeout(() => { isProcessing = false; }, 150);
+                            try { HTMLButtonElement.prototype.click.call(el); } catch (e) {}
+                            try { HTMLElement.prototype.click.call(el); } catch (e) {}
+
+                            setTimeout(() => { isProcessing = false; }, 10);
                             return;
                         }
                     }
                 }
 
+                const vaTuInput = document.querySelector("input.va-tu-answer-input_input__N9YZm");
                 const vaTuSpans = document.querySelectorAll(".va-tu-answer-input_character__GQCNk");
+
                 if (vaTuInput && vaTuSpans.length > 0) {
                     const patternArr = Array.from(vaTuSpans).map(s => {
-                        if (s.classList.contains("va-tu-answer-input_hiddenChar__0Utpw") || s.textContent === "_") return ".";
-                        if (s.textContent === " " || s.textContent === "\u00A0") return " ";
+                        if (s.classList.contains("va-tu-answer-input_hiddenChar__0Utpw") || s.textContent === "_") {
+                            return ".";
+                        }
+                        if (s.textContent === " " || s.textContent === "\u00A0") {
+                            return " ";
+                        }
                         return escapeRegExp(s.textContent.toLowerCase());
                     });
+
                     const currentHash = patternArr.join("") + "_" + vaTuSpans.length;
-                    const qText = patternArr.join("").replace(/\./g, "_");
+
                     if (currentHash !== lastVaTuHash) {
                         lastVaTuHash = currentHash;
                         usedVaTuAnswers.clear();
                     }
+
                     const regex = new RegExp("^" + patternArr.join("") + "$", "i");
-                    const availableAnswers = dictionary.filter(w => regex.test(w.trim()) && !usedVaTuAnswers.has(w));
+                    let validAnswers = dictionary.filter(w => regex.test(w.trim()));
+                    let availableAnswers = validAnswers.filter(ans => !usedVaTuAnswers.has(ans));
+
+                    if (availableAnswers.length === 0) {
+                        const firstKnownChar = Array.from(vaTuSpans).map(s => s.textContent.trim()).find(t => t && t !== "_" && t !== "\u00A0") || "";
+                        if (firstKnownChar) {
+                            const apiRes = await fetchApiSuggestions(firstKnownChar);
+                            const apiValid = apiRes.filter(w => regex.test(w.trim()));
+                            availableAnswers = apiValid.filter(ans => !usedVaTuAnswers.has(ans));
+                        }
+                    }
+
                     if (availableAnswers.length > 0) {
                         const randomAnswer = availableAnswers[Math.floor(Math.random() * availableAnswers.length)];
                         usedVaTuAnswers.add(randomAnswer);
-                        updateGameUI(qText, randomAnswer, "Vá từ", arenaNum);
-                        
+
                         vaTuInput.focus();
+
                         const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
                         nativeInputValueSetter.call(vaTuInput, randomAnswer);
+
                         vaTuInput.dispatchEvent(new Event("input", { bubbles: true }));
                         vaTuInput.dispatchEvent(new Event("change", { bubbles: true }));
-                        await new Promise(resolve => setTimeout(resolve, 5));
-                        ["keydown", "keypress", "keyup"].forEach(evt => triggerEvent(vaTuInput, evt, KeyboardEvent, { key: "Enter", code: "Enter", keyCode: 13, which: 13 }));
+
+                        await new Promise(resolve => setTimeout(resolve, 10));
+
+                        const keyEvents = ["keydown", "keypress", "keyup"];
+                        keyEvents.forEach(evt => triggerEvent(vaTuInput, evt, KeyboardEvent, { key: "Enter", code: "Enter", keyCode: 13, which: 13 }));
+
                         const formElement = vaTuInput.closest("form");
                         if (formElement) {
                             try { formElement.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })); } catch (e) {}
+                            try { formElement.submit(); } catch (e) {}
                         }
-                        setTimeout(() => { isProcessing = false; }, 150);
+
+                        setTimeout(() => { isProcessing = false; }, 10);
                         return;
                     }
                 }
 
+                const chars = document.querySelectorAll(".stick-answer-input_character__N56_X");
                 const slots = document.querySelectorAll(".stick-answer-input_answerSlot__AM1x1");
+
                 if (chars.length > 0 && slots.length > 0) {
-                    const charObjs = Array.from(chars).map(el => ({
+                    const rawCharList = Array.from(chars).map(el => ({
+                        originalText: el.textContent.trim(),
                         char: el.textContent.trim().toLowerCase(),
                         element: el,
                         used: false
                     }));
-                    const currentHash = charObjs.map(c => c.char).sort().join('') + "_" + chars.length;
-                    const qText = charObjs.map(c => c.char).join(", ");
-                    if (currentHash !== lastAnagramHash) {
-                        lastAnagramHash = currentHash;
-                        usedAnagramAnswers.clear();
-                    }
-                    const availableCharsStr = charObjs.map(c => c.char).sort().join('');
-                    const availableAnswers = dictionary.filter(w => {
-                        const wClean = w.replace(/\s+/g, '').toLowerCase();
-                        if (wClean.length !== charObjs.length) return false;
-                        return wClean.split('').sort().join('') === availableCharsStr && !usedAnagramAnswers.has(w);
-                    });
-                    if (availableAnswers.length > 0) {
-                        const randomAnswer = availableAnswers[Math.floor(Math.random() * availableAnswers.length)];
-                        usedAnagramAnswers.add(randomAnswer);
-                        updateGameUI(qText, randomAnswer, "Ghép từ", arenaNum);
 
-                        const answerClean = randomAnswer.replace(/\s+/g, '').toLowerCase();
-                        for (let i = 0; i < answerClean.length; i++) {
-                            const match = charObjs.find(c => !c.used && c.char === answerClean[i]);
-                            if (match) {
-                                match.used = true;
-                                const el = match.element;
-                                try { el.focus(); } catch (e) {}
-                                ["pointerdown", "mousedown", "pointerup", "mouseup", "click"].forEach(evt => triggerEvent(el, evt, MouseEvent));
-                                try { el.click(); } catch (e) {}
-                                try { HTMLElement.prototype.click.call(el); } catch (e) {}
-                                await new Promise(resolve => setTimeout(resolve, 20));
+                    const isWholeWordMode = rawCharList.some(c => c.originalText.length > 1 || /\s/.test(c.originalText));
+
+                    if (isWholeWordMode) {
+                        const unclicked = rawCharList.filter(c => {
+                            const opacity = window.getComputedStyle(c.element).opacity;
+                            const pointerEvents = window.getComputedStyle(c.element).pointerEvents;
+                            return opacity !== '0' && pointerEvents !== 'none';
+                        });
+
+                        if (unclicked.length > 0) {
+                            const target = unclicked[Math.floor(Math.random() * unclicked.length)];
+                            const el = target.element;
+                            try { el.focus(); } catch (e) {}
+                            const pointerEvents = ["pointerover", "pointerenter", "pointermove", "pointerdown", "pointerup"];
+                            pointerEvents.forEach(evt => triggerEvent(el, evt, PointerEvent));
+                            const mouseEvents = ["mouseover", "mouseenter", "mousemove", "mousedown", "mouseup", "click"];
+                            mouseEvents.forEach(evt => triggerEvent(el, evt, MouseEvent));
+                            try { el.click(); } catch (e) {}
+                            try { HTMLElement.prototype.click.call(el); } catch (e) {}
+                            await new Promise(resolve => setTimeout(resolve, 10));
+                            setTimeout(() => { isProcessing = false; }, 10);
+                            return;
+                        }
+                    } else {
+                        const charObjs = rawCharList;
+                        const currentHash = charObjs.map(c => c.char).sort().join('') + "_" + slots.length;
+
+                        if (currentHash !== lastAnagramHash) {
+                            lastAnagramHash = currentHash;
+                            usedAnagramAnswers.clear();
+                        }
+
+                        const expectedLength = slots.length;
+                        const availableCharsStr = charObjs.map(c => c.char).sort().join('');
+
+                        let validAnswers = dictionary.filter(w => {
+                            const wClean = w.replace(/\s+/g, '').toLowerCase();
+                            if (wClean.length !== expectedLength) return false;
+                            return wClean.split('').sort().join('') === availableCharsStr;
+                        });
+
+                        let availableAnswers = validAnswers.filter(ans => !usedAnagramAnswers.has(ans));
+
+                        if (availableAnswers.length === 0) {
+                            const upperItem = charObjs.find(c => c.originalText && c.originalText !== c.originalText.toLowerCase());
+                            const queryKey = upperItem ? upperItem.originalText : (charObjs[0]?.char || "");
+                            if (queryKey) {
+                                const apiRes = await fetchApiSuggestions(queryKey);
+                                const apiValid = apiRes.filter(w => {
+                                    const wClean = w.replace(/\s+/g, '').toLowerCase();
+                                    if (wClean.length !== expectedLength) return false;
+                                    return wClean.split('').sort().join('') === availableCharsStr;
+                                });
+                                availableAnswers = apiValid.filter(ans => !usedAnagramAnswers.has(ans));
                             }
                         }
-                        setTimeout(() => { isProcessing = false; }, 150);
-                        return;
+
+                        if (availableAnswers.length > 0) {
+                            const randomAnswer = availableAnswers[Math.floor(Math.random() * availableAnswers.length)];
+                            usedAnagramAnswers.add(randomAnswer);
+
+                            const answerClean = randomAnswer.replace(/\s+/g, '').toLowerCase();
+
+                            for (let i = 0; i < answerClean.length; i++) {
+                                const charTarget = answerClean[i];
+                                const match = charObjs.find(c => !c.used && c.char === charTarget);
+                                
+                                if (match) {
+                                    match.used = true;
+                                    const el = match.element;
+
+                                    try { el.focus(); } catch (e) {}
+
+                                    const pointerEvents = ["pointerover", "pointerenter", "pointermove", "pointerdown", "pointerup"];
+                                    pointerEvents.forEach(evt => triggerEvent(el, evt, PointerEvent));
+
+                                    const mouseEvents = ["mouseover", "mouseenter", "mousemove", "mousedown", "mouseup", "click"];
+                                    mouseEvents.forEach(evt => triggerEvent(el, evt, MouseEvent));
+
+                                    try { el.click(); } catch (e) {}
+                                    try { HTMLElement.prototype.click.call(el); } catch (e) {}
+
+                                    await new Promise(resolve => setTimeout(resolve, 5));
+                                }
+                            }
+
+                            setTimeout(() => { isProcessing = false; }, 10);
+                            return;
+                        }
                     }
                 }
 
+                const wordElement = document.querySelector("a.word-detail_wordDetailWord__1DYml");
                 const inputElement = document.querySelector("input.word-link-answer-input_input__L6PK2");
                 const svgElement = document.querySelector("svg.lucide.lucide-send");
+
                 if (wordElement && inputElement && svgElement) {
                     const buttonElement = svgElement.closest("button");
                     if (buttonElement) {
@@ -368,44 +549,89 @@
                                 currentTargetQuestion = currentQuestion;
                                 usedAnswers.clear();
                             }
+
                             const words = currentQuestion.split(/\s+/);
                             const lastWord = words[words.length - 1].toLowerCase();
-                            const availableAnswers = dictionary.filter(phrase => {
+
+                            let validAnswers = dictionary.filter(phrase => {
                                 const phraseWords = phrase.toLowerCase().split(/\s+/);
-                                return phraseWords[0] === lastWord && !usedAnswers.has(phrase);
+                                return phraseWords[0] === lastWord;
                             });
+
+                            let availableAnswers = validAnswers.filter(ans => !usedAnswers.has(ans));
+
+                            if (availableAnswers.length === 0) {
+                                const apiRes = await fetchApiSuggestions(lastWord);
+                                const apiValid = apiRes.filter(phrase => {
+                                    const phraseWords = phrase.toLowerCase().split(/\s+/);
+                                    return phraseWords[0] === lastWord;
+                                });
+                                availableAnswers = apiValid.filter(ans => !usedAnswers.has(ans));
+                            }
+
                             if (availableAnswers.length > 0) {
                                 const randomAnswer = availableAnswers[Math.floor(Math.random() * availableAnswers.length)];
                                 usedAnswers.add(randomAnswer);
-                                updateGameUI(currentQuestion, randomAnswer, "Nối từ", arenaNum);
 
                                 inputElement.focus();
+
                                 const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
                                 nativeInputValueSetter.call(inputElement, randomAnswer);
+
                                 inputElement.dispatchEvent(new Event("input", { bubbles: true }));
                                 inputElement.dispatchEvent(new Event("change", { bubbles: true }));
-                                await new Promise(resolve => setTimeout(resolve, 5));
+
+                                await new Promise(resolve => setTimeout(resolve, 10));
+
                                 try { buttonElement.focus(); } catch (e) {}
-                                ["mouseover", "mousedown", "mouseup", "click"].forEach(evt => triggerEvent(buttonElement, evt, MouseEvent));
-                                ["keydown", "keypress", "keyup"].forEach(evt => triggerEvent(buttonElement, evt, KeyboardEvent, { key: "Enter", code: "Enter", keyCode: 13 }));
+
+                                const pointerEvents = ["pointerover", "pointerenter", "pointermove", "pointerdown", "pointerup"];
+                                pointerEvents.forEach(evt => triggerEvent(buttonElement, evt, PointerEvent));
+
+                                const mouseEvents = ["mouseover", "mouseenter", "mousemove", "mousedown", "mouseup", "click", "dblclick", "contextmenu"];
+                                mouseEvents.forEach(evt => triggerEvent(buttonElement, evt, MouseEvent));
+
+                                const keyEvents = ["keydown", "keypress", "keyup"];
+                                keyEvents.forEach(evt => triggerEvent(buttonElement, evt, KeyboardEvent, { key: "Enter", code: "Enter", keyCode: 13 }));
+                                keyEvents.forEach(evt => triggerEvent(buttonElement, evt, KeyboardEvent, { key: " ", code: "Space", keyCode: 32 }));
+
+                                try {
+                                    if (typeof buttonElement.setPointerCapture === "function") {
+                                        buttonElement.setPointerCapture(1);
+                                    }
+                                } catch (e) {}
+
+                                try {
+                                    if (typeof buttonElement.releasePointerCapture === "function") {
+                                        buttonElement.releasePointerCapture(1);
+                                    }
+                                } catch (e) {}
+
                                 try { buttonElement.click(); } catch (e) {}
+                                try { HTMLButtonElement.prototype.click.call(buttonElement); } catch (e) {}
+                                try { HTMLElement.prototype.click.call(buttonElement); } catch (e) {}
+
                                 const formElement = buttonElement.closest("form");
                                 if (formElement) {
                                     try { formElement.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })); } catch (e) {}
+                                    try { formElement.submit(); } catch (e) {}
                                 }
-                                setTimeout(() => { isProcessing = false; }, 150);
-                                return;
                             }
                         }
                     }
                 }
-                isProcessing = false;
+
+                setTimeout(() => { isProcessing = false; }, 20);
+
             } catch (error) {
                 isProcessing = false;
             }
         };
 
+        const observer = new MutationObserver(processQuestion);
+        observer.observe(document.body, { childList: true, subtree: true });
+
         setInterval(processQuestion, 50);
-        setInterval(updateUserInfo, 2000);
+
     } catch (error) {}
 })();
