@@ -146,10 +146,10 @@
             stopBtn.style.display = 'none';
         };
 
-        const checkVarBtn = document.createElement('button');
-        checkVarBtn.className = 'rainbow-border';
-        checkVarBtn.textContent = '🔍 Check var: OFF';
-        Object.assign(checkVarBtn.style, {
+        const checkTiktokBtn = document.createElement('button');
+        checkTiktokBtn.className = 'rainbow-border';
+        checkTiktokBtn.textContent = '🔍 Check TikTok: OFF';
+        Object.assign(checkTiktokBtn.style, {
             background: '#2a2a2a',
             color: '#aaa',
             padding: '8px',
@@ -161,21 +161,21 @@
             width: '100%'
         });
 
-        let isCheckVarMode = false;
+        let isCheckTiktokMode = false;
         const checkQueue = [];
         let isProcessingCheckQueue = false;
         const lastCheckedMap = new Map();
 
-        checkVarBtn.onclick = () => {
-            isCheckVarMode = !isCheckVarMode;
-            if (isCheckVarMode) {
-                checkVarBtn.textContent = '🔍 Check var: ON';
-                checkVarBtn.style.color = '#0f0';
-                checkVarBtn.style.background = '#1a3a1a';
+        checkTiktokBtn.onclick = () => {
+            isCheckTiktokMode = !isCheckTiktokMode;
+            if (isCheckTiktokMode) {
+                checkTiktokBtn.textContent = '🔍 Check TikTok: ON';
+                checkTiktokBtn.style.color = '#0f0';
+                checkTiktokBtn.style.background = '#1a3a1a';
             } else {
-                checkVarBtn.textContent = '🔍 Check var: OFF';
-                checkVarBtn.style.color = '#aaa';
-                checkVarBtn.style.background = '#2a2a2a';
+                checkTiktokBtn.textContent = '🔍 Check TikTok: OFF';
+                checkTiktokBtn.style.color = '#aaa';
+                checkTiktokBtn.style.background = '#2a2a2a';
                 checkQueue.length = 0;
             }
         };
@@ -183,7 +183,7 @@
         body.appendChild(statusText);
         body.appendChild(grid);
         body.appendChild(stopBtn);
-        body.appendChild(checkVarBtn);
+        body.appendChild(checkTiktokBtn);
         popup.appendChild(header);
         popup.appendChild(body);
         document.body.appendChild(popup);
@@ -231,20 +231,6 @@
             return [];
         };
 
-        const findUserCodeByName = (name) => {
-            const senders = document.querySelectorAll('.BaseChat_messageSender__8eKiI span, .user-name_auth__MN7Vj, .BaseChat_messageSender__8eKiI');
-            for (let i = senders.length - 1; i >= 0; i--) {
-                if (senders[i].textContent.trim().toLowerCase() === name.toLowerCase()) {
-                    const article = senders[i].closest('article');
-                    if (article) {
-                        const el = article.querySelector('[data-user-code]');
-                        if (el) return el.getAttribute('data-user-code');
-                    }
-                }
-            }
-            return null;
-        };
-
         const sendChatMessage = async (msg) => {
             const input = document.querySelector('#chat-input, .BaseChat_chatTextarea__SCNBu');
             const btn = document.querySelector('.BaseChat_sendBtn__vJosN');
@@ -268,32 +254,49 @@
             
             while (checkQueue.length > 0) {
                 const req = checkQueue.shift();
-                let userCode = req.userCode;
-                if (!userCode && req.targetName) {
-                    userCode = findUserCodeByName(req.targetName);
-                }
+                const targetId = req.targetId;
                 
-                if (userCode) {
+                if (targetId) {
                     try {
-                        const res = await fetch(`https://api.noitu.fun/api/v1/user/get?code=${userCode}`);
+                        const res = await fetch(`https://tiktokvippro.vercel.app/api/index?username=${encodeURIComponent(targetId)}`);
                         const data = await res.json();
-                        if (data && data.name !== undefined) {
-                            const curExp = data.currentLevelExperience || 0;
-                            const nextExp = data.nextLevelRequirement || 1;
-                            const pExp = Math.round((curExp / nextExp) * 100);
-                            const msg = `[Check] Tên: ${data.name} | Lv: ${data.level} | Exp: ${curExp} / ${nextExp} - ${pExp}% lv | Xu: ${data.coin}`;
+                        
+                        if (data && data.author) {
+                            const nickname = data.author.nickname || '';
+                            const uniqueId = data.author.uniqueId || '';
+                            const signature = data.author.signature || '';
+                            const bioLink = data.author.bioLink || '';
+                            const follower = data.stats_formatted?.follower || '0';
+                            const following = data.stats_formatted?.following || '0';
+                            const heart = data.stats_formatted?.heart || '0';
+                            const video = data.stats_formatted?.video || '0';
+
+                            let bioStr = signature;
+                            if (bioLink) {
+                                bioStr = bioStr ? (bioStr + "\n" + bioLink) : bioLink;
+                            }
+                            
+                            let msg = "Thông Tin Tiktok\n";
+                            msg += "Tên: " + nickname + "\n";
+                            msg += "Id: " + uniqueId + "\n";
+                            msg += "Bio: " + (bioStr || "Không có") + "\n";
+                            msg += "Fl: " + follower + "\n";
+                            msg += "Người FL: " + following + "\n";
+                            msg += "Tim: " + heart + "\n";
+                            msg += "Số Video: " + video;
+
                             await sendChatMessage(msg);
                         }
                     } catch (e) {}
                 }
-                await new Promise(r => setTimeout(r, 1000));
+                await new Promise(r => setTimeout(r, 2000));
             }
             
             isProcessingCheckQueue = false;
         };
 
         const chatObserver = new MutationObserver((mutations) => {
-            if (!isCheckVarMode) return;
+            if (!isCheckTiktokMode) return;
             for (const m of mutations) {
                 for (const node of m.addedNodes) {
                     if (node.nodeType === 1 && node.tagName === 'ARTICLE' && node.classList.contains('BaseChat_messageRoot__OBIS_')) {
@@ -303,25 +306,18 @@
                         const textEl = node.querySelector('.BaseChat_messageText__dgnWl');
                         if (textEl) {
                             const text = textEl.textContent.trim();
-                            if (text.toLowerCase().startsWith('/check')) {
-                                const senderEl = node.querySelector('.BaseChat_messageSender__8eKiI span, .user-name_auth__MN7Vj');
-                                const senderName = senderEl ? senderEl.textContent.trim() : "";
-                                let targetName = text.substring(6).trim();
-                                let userCode = null;
+                            if (text.toLowerCase().startsWith('/tiktok ')) {
+                                const targetId = text.substring(8).trim();
                                 
-                                if (!targetName) {
-                                    targetName = senderName;
-                                    const codeEl = node.querySelector('[data-user-code]');
-                                    if (codeEl) userCode = codeEl.getAttribute('data-user-code');
-                                }
-                                
-                                const cacheKey = targetName + '_' + (userCode || '');
-                                const now = Date.now();
-                                if (lastCheckedMap.has(cacheKey) && (now - lastCheckedMap.get(cacheKey) < 5000)) continue;
-                                lastCheckedMap.set(cacheKey, now);
+                                if (targetId) {
+                                    const cacheKey = targetId.toLowerCase();
+                                    const now = Date.now();
+                                    if (lastCheckedMap.has(cacheKey) && (now - lastCheckedMap.get(cacheKey) < 10000)) continue;
+                                    lastCheckedMap.set(cacheKey, now);
 
-                                checkQueue.push({ targetName, userCode });
-                                processCheckQueue();
+                                    checkQueue.push({ targetId });
+                                    processCheckQueue();
+                                }
                             }
                         }
                     }
