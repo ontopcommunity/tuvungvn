@@ -1,38 +1,5 @@
 (async () => {
     try {
-        const originalFetch = window.fetch;
-        window.fetch = async function () {
-            const response = await originalFetch.apply(this, arguments);
-            try {
-                const resource = arguments[0];
-                const url = typeof resource === 'string' ? resource : (resource instanceof Request ? resource.url : '');
-                if (url.includes('/api/v1/user/get')) {
-                    const clone = response.clone();
-                    clone.json().then(data => {
-                        if (data && data.name !== undefined) {
-                            window.dispatchEvent(new CustomEvent('updateUserInfo', { detail: data }));
-                        }
-                    }).catch(() => {});
-                }
-            } catch (error) {}
-            return response;
-        };
-
-        const originalXHR = XMLHttpRequest.prototype.open;
-        XMLHttpRequest.prototype.open = function () {
-            this.addEventListener('load', function () {
-                try {
-                    if (this.responseURL.includes('/api/v1/user/get')) {
-                        const data = JSON.parse(this.responseText);
-                        if (data && data.name !== undefined) {
-                            window.dispatchEvent(new CustomEvent('updateUserInfo', { detail: data }));
-                        }
-                    }
-                } catch (error) {}
-            });
-            originalXHR.apply(this, arguments);
-        };
-
         const styleSheet = document.createElement("style");
         styleSheet.textContent = `
             @keyframes rainbowBorderAnim {
@@ -113,51 +80,6 @@
         });
         statusText.textContent = 'Auto Play: OFF';
 
-        const userInfoBox = document.createElement('div');
-        Object.assign(userInfoBox.style, {
-            background: '#2a2a2a',
-            border: '1px solid #444',
-            borderRadius: '4px',
-            padding: '8px',
-            fontSize: '11px',
-            display: 'none',
-            flexDirection: 'column',
-            position: 'relative',
-            gap: '4px'
-        });
-
-        const closeUserBtn = document.createElement('span');
-        closeUserBtn.textContent = '✖';
-        Object.assign(closeUserBtn.style, {
-            position: 'absolute',
-            top: '4px',
-            right: '6px',
-            cursor: 'pointer',
-            color: '#f55',
-            fontWeight: 'bold',
-            fontSize: '12px'
-        });
-        closeUserBtn.onclick = () => {
-            userInfoBox.style.display = 'none';
-        };
-
-        const userNameEl = document.createElement('div');
-        const userLevelEl = document.createElement('div');
-        const userCoinEl = document.createElement('div');
-
-        userInfoBox.appendChild(closeUserBtn);
-        userInfoBox.appendChild(userNameEl);
-        userInfoBox.appendChild(userLevelEl);
-        userInfoBox.appendChild(userCoinEl);
-
-        window.addEventListener('updateUserInfo', (e) => {
-            const { name, level, coin } = e.detail;
-            userNameEl.innerHTML = `<span style="color:#aaa">Tên:</span> <span style="color:#fff;font-weight:bold">${name}</span>`;
-            userLevelEl.innerHTML = `<span style="color:#aaa">Cấp:</span> <span style="color:#ff0;font-weight:bold">${level}</span>`;
-            userCoinEl.innerHTML = `<span style="color:#aaa">Xu:</span> <span style="color:#0f0;font-weight:bold">${coin}</span>`;
-            userInfoBox.style.display = 'flex';
-        });
-
         const grid = document.createElement('div');
         Object.assign(grid.style, {
             display: 'grid',
@@ -224,10 +146,44 @@
             stopBtn.style.display = 'none';
         };
 
+        const checkVarBtn = document.createElement('button');
+        checkVarBtn.className = 'rainbow-border';
+        checkVarBtn.textContent = '🔍 Check var: OFF';
+        Object.assign(checkVarBtn.style, {
+            background: '#2a2a2a',
+            color: '#aaa',
+            padding: '8px',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontSize: '11px',
+            fontWeight: 'bold',
+            marginTop: '6px',
+            width: '100%'
+        });
+
+        let isCheckVarMode = false;
+        const checkQueue = [];
+        let isProcessingCheckQueue = false;
+        const lastCheckedMap = new Map();
+
+        checkVarBtn.onclick = () => {
+            isCheckVarMode = !isCheckVarMode;
+            if (isCheckVarMode) {
+                checkVarBtn.textContent = '🔍 Check var: ON';
+                checkVarBtn.style.color = '#0f0';
+                checkVarBtn.style.background = '#1a3a1a';
+            } else {
+                checkVarBtn.textContent = '🔍 Check var: OFF';
+                checkVarBtn.style.color = '#aaa';
+                checkVarBtn.style.background = '#2a2a2a';
+                checkQueue.length = 0;
+            }
+        };
+
         body.appendChild(statusText);
-        body.appendChild(userInfoBox);
         body.appendChild(grid);
         body.appendChild(stopBtn);
+        body.appendChild(checkVarBtn);
         popup.appendChild(header);
         popup.appendChild(body);
         document.body.appendChild(popup);
@@ -274,6 +230,106 @@
             apiCache.set(key, []);
             return [];
         };
+
+        const findUserCodeByName = (name) => {
+            const senders = document.querySelectorAll('.BaseChat_messageSender__8eKiI span, .user-name_auth__MN7Vj, .BaseChat_messageSender__8eKiI');
+            for (let i = senders.length - 1; i >= 0; i--) {
+                if (senders[i].textContent.trim().toLowerCase() === name.toLowerCase()) {
+                    const article = senders[i].closest('article');
+                    if (article) {
+                        const el = article.querySelector('[data-user-code]');
+                        if (el) return el.getAttribute('data-user-code');
+                    }
+                }
+            }
+            return null;
+        };
+
+        const sendChatMessage = async (msg) => {
+            const input = document.querySelector('#chat-input, .BaseChat_chatTextarea__SCNBu');
+            const btn = document.querySelector('.BaseChat_sendBtn__vJosN');
+            if (input && btn) {
+                input.focus();
+                const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value").set;
+                nativeSetter.call(input, msg);
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+                input.dispatchEvent(new Event('change', { bubbles: true }));
+                await new Promise(r => setTimeout(r, 50));
+                
+                btn.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+                btn.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true }));
+                btn.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+            }
+        };
+
+        const processCheckQueue = async () => {
+            if (isProcessingCheckQueue || checkQueue.length === 0) return;
+            isProcessingCheckQueue = true;
+            
+            while (checkQueue.length > 0) {
+                const req = checkQueue.shift();
+                let userCode = req.userCode;
+                if (!userCode && req.targetName) {
+                    userCode = findUserCodeByName(req.targetName);
+                }
+                
+                if (userCode) {
+                    try {
+                        const res = await fetch(`https://api.noitu.fun/api/v1/user/get?code=${userCode}`);
+                        const data = await res.json();
+                        if (data && data.name !== undefined) {
+                            const curExp = data.currentLevelExperience || 0;
+                            const nextExp = data.nextLevelRequirement || 1;
+                            const pExp = Math.round((curExp / nextExp) * 100);
+                            const msg = `[Check] Tên: ${data.name} | Lv: ${data.level} | Exp: ${curExp} / ${nextExp} - ${pExp}% lv | Xu: ${data.coin}`;
+                            await sendChatMessage(msg);
+                        }
+                    } catch (e) {}
+                }
+                await new Promise(r => setTimeout(r, 1000));
+            }
+            
+            isProcessingCheckQueue = false;
+        };
+
+        const chatObserver = new MutationObserver((mutations) => {
+            if (!isCheckVarMode) return;
+            for (const m of mutations) {
+                for (const node of m.addedNodes) {
+                    if (node.nodeType === 1 && node.tagName === 'ARTICLE' && node.classList.contains('BaseChat_messageRoot__OBIS_')) {
+                        if (node.getAttribute('data-bot-checked') === 'true') continue;
+                        node.setAttribute('data-bot-checked', 'true');
+                        
+                        const textEl = node.querySelector('.BaseChat_messageText__dgnWl');
+                        if (textEl) {
+                            const text = textEl.textContent.trim();
+                            if (text.toLowerCase().startsWith('/check')) {
+                                const senderEl = node.querySelector('.BaseChat_messageSender__8eKiI span, .user-name_auth__MN7Vj');
+                                const senderName = senderEl ? senderEl.textContent.trim() : "";
+                                let targetName = text.substring(6).trim();
+                                let userCode = null;
+                                
+                                if (!targetName) {
+                                    targetName = senderName;
+                                    const codeEl = node.querySelector('[data-user-code]');
+                                    if (codeEl) userCode = codeEl.getAttribute('data-user-code');
+                                }
+                                
+                                const cacheKey = targetName + '_' + (userCode || '');
+                                const now = Date.now();
+                                if (lastCheckedMap.has(cacheKey) && (now - lastCheckedMap.get(cacheKey) < 5000)) continue;
+                                lastCheckedMap.set(cacheKey, now);
+
+                                checkQueue.push({ targetName, userCode });
+                                processCheckQueue();
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        chatObserver.observe(document.body, { childList: true, subtree: true });
 
         let currentTargetQuestion = "";
         let usedAnswers = new Set();
