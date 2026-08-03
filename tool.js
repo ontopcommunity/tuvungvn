@@ -164,7 +164,7 @@
         let isCheckTiktokMode = false;
         const checkQueue = [];
         let isProcessingCheckQueue = false;
-        const lastCheckedMap = new Map();
+        const processedTiktokIds = new Set();
 
         checkTiktokBtn.onclick = () => {
             isCheckTiktokMode = !isCheckTiktokMode;
@@ -201,9 +201,14 @@
             }
         };
 
-        const response = await fetch("https://raw.githubusercontent.com/ontopcommunity/tuvungvn/refs/heads/main/tuvungvn.txt");
-        const text = await response.text();
-        const dictionary = text.split('\n')
+        const dictRes = await fetch("https://raw.githubusercontent.com/ontopcommunity/tuvungvn/refs/heads/main/tuvungvn.txt", {
+            mode: 'cors',
+            headers: {
+                "Accept": "text/plain, */*"
+            }
+        });
+        const dictText = await dictRes.text();
+        const dictionary = dictText.split('\n')
             .map(line => line.trim())
             .filter(line => line.length > 0 && line.includes(' '));
 
@@ -215,15 +220,26 @@
             if (apiCache.has(key)) return apiCache.get(key);
             
             try {
-                const res = await fetch(`https://dictionaryvip.vercel.app/api/v1/suggest?q=${encodeURIComponent(key)}`);
-                const data = await res.json();
-                if (data && Array.isArray(data.suggestions)) {
-                    const filtered = data.suggestions.filter(s => {
-                        const words = s.trim().split(/\s+/);
-                        return words.length === 2;
-                    });
-                    apiCache.set(key, filtered);
-                    return filtered;
+                const targetUrl = `https://dictionaryvip.vercel.app/api/v1/suggest?q=${encodeURIComponent(key)}`;
+                const res = await fetch(targetUrl, { mode: "cors" });
+                
+                if (res.ok) {
+                    const textData = await res.text();
+                    let data = null;
+                    try {
+                        data = JSON.parse(textData);
+                    } catch (e) {
+                        const match = textData.match(/\{[\s\S]*\}/);
+                        if (match) data = JSON.parse(match[0]);
+                    }
+                    if (data && Array.isArray(data.suggestions)) {
+                        const filtered = data.suggestions.filter(s => {
+                            const words = s.trim().split(/\s+/);
+                            return words.length === 2;
+                        });
+                        apiCache.set(key, filtered);
+                        return filtered;
+                    }
                 }
             } catch (e) {}
             
@@ -232,19 +248,40 @@
         };
 
         const sendChatMessage = async (msg) => {
-            const input = document.querySelector('#chat-input, .BaseChat_chatTextarea__SCNBu');
-            const btn = document.querySelector('.BaseChat_sendBtn__vJosN');
-            if (input && btn) {
-                input.focus();
-                const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value").set;
-                nativeSetter.call(input, msg);
-                input.dispatchEvent(new Event('input', { bubbles: true }));
-                input.dispatchEvent(new Event('change', { bubbles: true }));
-                await new Promise(r => setTimeout(r, 50));
+            const input = document.getElementById('chat-input') || document.querySelector('textarea.BaseChat_chatTextarea__SCNBu');
+            if (!input) return;
+            
+            input.focus();
+            
+            const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value');
+            if (nativeSetter && nativeSetter.set) {
+                nativeSetter.set.call(input, msg);
+            } else {
+                input.value = msg;
+            }
+            
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+            
+            await new Promise(r => setTimeout(r, 100));
+            
+            const btn = document.querySelector('button.BaseChat_sendBtn__vJosN');
+            
+            if (btn) {
+                const pointerEvents = ["pointerover", "pointerenter", "pointermove", "pointerdown", "pointerup"];
+                pointerEvents.forEach(evt => {
+                    try { btn.dispatchEvent(new PointerEvent(evt, { bubbles: true, cancelable: true })); } catch (e) {}
+                });
                 
-                btn.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
-                btn.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true }));
-                btn.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+                const mouseEvents = ["mouseover", "mouseenter", "mousemove", "mousedown", "mouseup", "click"];
+                mouseEvents.forEach(evt => {
+                    try { btn.dispatchEvent(new MouseEvent(evt, { bubbles: true, cancelable: true })); } catch (e) {}
+                });
+                
+                try { btn.click(); } catch (e) {}
+            } else {
+                input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }));
+                input.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }));
             }
         };
 
@@ -258,34 +295,41 @@
                 
                 if (targetId) {
                     try {
-                        const res = await fetch(`https://tiktokvippro.vercel.app/api/index?username=${encodeURIComponent(targetId)}`);
-                        const data = await res.json();
-                        
-                        if (data && data.author) {
-                            const nickname = data.author.nickname || '';
-                            const uniqueId = data.author.uniqueId || '';
-                            const signature = data.author.signature || '';
-                            const bioLink = data.author.bioLink || '';
-                            const follower = data.stats_formatted?.follower || '0';
-                            const following = data.stats_formatted?.following || '0';
-                            const heart = data.stats_formatted?.heart || '0';
-                            const video = data.stats_formatted?.video || '0';
+                        const targetUrl = `https://tiktokvippro.vercel.app/api/index?username=${encodeURIComponent(targetId)}`;
+                        const res = await fetch(targetUrl, { mode: "cors" });
 
-                            let bioStr = signature;
-                            if (bioLink) {
-                                bioStr = bioStr ? (bioStr + "\n" + bioLink) : bioLink;
+                        if (res.ok) {
+                            const textData = await res.text();
+                            let data = null;
+                            try {
+                                data = JSON.parse(textData);
+                            } catch (e) {
+                                const match = textData.match(/\{[\s\S]*\}/);
+                                if (match) data = JSON.parse(match[0]);
                             }
                             
-                            let msg = "Thông Tin Tiktok\n";
-                            msg += "Tên: " + nickname + "\n";
-                            msg += "Id: " + uniqueId + "\n";
-                            msg += "Bio: " + (bioStr || "Không có") + "\n";
-                            msg += "Fl: " + follower + "\n";
-                            msg += "Người FL: " + following + "\n";
-                            msg += "Tim: " + heart + "\n";
-                            msg += "Số Video: " + video;
+                            if (data && data.author) {
+                                const nickname = data.author.nickname || '';
+                                const uniqueId = data.author.uniqueId || '';
+                                const signature = data.author.signature || '';
+                                const bioLink = data.author.bioLink || '';
+                                const follower = data.stats_formatted?.follower || '0';
+                                const following = data.stats_formatted?.following || '0';
+                                const heart = data.stats_formatted?.heart || '0';
+                                const video = data.stats_formatted?.video || '0';
 
-                            await sendChatMessage(msg);
+                                let bioStr = signature;
+                                if (bioLink) {
+                                    bioStr = bioStr ? (bioStr + " " + bioLink) : bioLink;
+                                }
+                                if (bioStr) {
+                                    bioStr = bioStr.replace(/\r?\n|\r/g, " ");
+                                }
+                                
+                                let msg = `Thông Tin Tiktok | Tên: ${nickname} | Id: ${uniqueId} | Bio: ${bioStr || "Không có"} | Fl: ${follower} | Người FL: ${following} | Tim: ${heart} | Số Video: ${video}`;
+
+                                await sendChatMessage(msg);
+                            }
                         }
                     } catch (e) {}
                 }
@@ -299,22 +343,26 @@
             if (!isCheckTiktokMode) return;
             for (const m of mutations) {
                 for (const node of m.addedNodes) {
-                    if (node.nodeType === 1 && node.tagName === 'ARTICLE' && node.classList.contains('BaseChat_messageRoot__OBIS_')) {
-                        if (node.getAttribute('data-bot-checked') === 'true') continue;
-                        node.setAttribute('data-bot-checked', 'true');
-                        
-                        const textEl = node.querySelector('.BaseChat_messageText__dgnWl');
-                        if (textEl) {
-                            const text = textEl.textContent.trim();
-                            if (text.toLowerCase().startsWith('/tiktok ')) {
-                                const targetId = text.substring(8).trim();
+                    if (node.nodeType === 1) {
+                        const textContent = node.textContent || "";
+                        if (textContent.toLowerCase().includes('/tiktok ')) {
+                            const textElements = node.querySelectorAll('*');
+                            let fullText = textContent;
+                            for (const el of textElements) {
+                                if (el.textContent && el.textContent.toLowerCase().includes('/tiktok ')) {
+                                    fullText = el.textContent.trim();
+                                }
+                            }
+                            
+                            const match = fullText.match(/\/tiktok\s+(\S+)/i);
+                            if (match && match[1]) {
+                                const targetId = match[1].trim();
+                                const cacheKey = targetId.toLowerCase();
                                 
-                                if (targetId) {
-                                    const cacheKey = targetId.toLowerCase();
-                                    const now = Date.now();
-                                    if (lastCheckedMap.has(cacheKey) && (now - lastCheckedMap.get(cacheKey) < 10000)) continue;
-                                    lastCheckedMap.set(cacheKey, now);
+                                if (processedTiktokIds.has(cacheKey)) continue;
+                                processedTiktokIds.add(cacheKey);
 
+                                if (!checkQueue.some(item => item.targetId.toLowerCase() === targetId.toLowerCase())) {
                                     checkQueue.push({ targetId });
                                     processCheckQueue();
                                 }
