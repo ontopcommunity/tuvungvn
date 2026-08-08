@@ -1,0 +1,86 @@
+Tạo cho tôi website game câu cá với ngôn ngữ lập trình nào cũng đc,miễn khi lập trình thì có thể deploy lên vercel và website hoạt động 100%,bây giờ website sẽ có các thứ sau đây.
+-Đầu tiên là đăng nhập,khi vào lần đầu sẽ có đăng nhập và đăng ký,bấm đăng ký nó sẽ tạo khung điền thông tin gồm Tên(tối thiểu 5 chữ và tối đa 15 chữ,có thể thêm icon,ko ký tự),username(tối thiểu 5 chữ và tối đa 20 chữ,ko có ký tự),mật khẩu (tối thiểu 8 chữ,tối đa 20 chữ,có thể thêm các ký tự),và dữ liệu sau khi đăng ký sẽ tải lên database của firebase(sau khi code xong hướng dẫn tôi setup),sau khi đăng ký thì đã lưu vào database và khung đăng nhập sẽ nhập username và mk để vào(nếu đã đăng ký)và khi đăng nhập nó sẽ lưu để lần sau vào web nó sẽ loading và vào acc luôn.
+-Đến với website thì sau khi đăng nhập thành công thì giao diện sẽ là phía cạnh trên của web gồm các thông tin như avartar,kế bên là cụm Tên và lv(lv thì sẽ có kinh nghiệm cần cày để lên lv,lv tối đa là hơn 10000 với số kinh nghiệm lên đến 10 tỷ kinh nghiệm,thì sẽ tự phân tích số kinh nghiệm cần đạt thêm ví dụ lv 1 đã có 100 kinh nghiệm là lên lv 2 thì đã có 100 kinh nghiệm thì chỉ cần 50 kinh nghiệm là 150 là lên lv 3 kiểu thế và dần dần lên lv thôi),kế bên cụm này là rank đang cày(có 6 cấp độ rank cho tháng gồm tân thủ,siêu tân thủ,chuyên nghiệp,cao thủ,siêu cao thủ,bậc thầy,thống trị,các rank này sẽ đánh số mỗi rank là 3 mức ví dụ như tân thủ 1,tân thủ2... Thế đấy,rank Thống trị 3 sẽ có số điểm tối đa là 100000 điểm,cái này khi code tự phân tích số lượng điểm cần đạt nhá,cái này nằm bên góc trên trái,bên góc trên phải sẽ là số tiền,số kim cương,chuỗi câu cá(mỗi lần câu thành công là +1,thất bại thì reset về 0),Bảng xếp hạng,khi bấm vào sẽ load bảng xếp hạng gồm các hạng mục số tiền,số kim cương , chuỗi,lv,rank tính theo số kinh nghiệm rank đang cày,rank kiểu tân thủ các thứ sẽ reset theo tháng,còn lại giữ nguyên và tất cả(tính theo kiểu hoàn hảo ấy cho tất cả thứ trong hạng mục)tất cả thông tin này sẽ lưu ở database
+Ok tất cả thứ trên là thanh trên cùng nhá bây giờ đến với phía bên dưới thanh này có nút bản đồ,bấm vào sẽ có các bản đồ từ số 1 đến số 12 và đặt tên ví dụ như bản đồ 1 là hồ nhỏ,cứ thế tự đặt tên cho các bản đồ nhá,mỗi bản đồ sẽ có các mức độ cá để câu khác nhau(mỗi bản đồ sẽ tầm từ 100,400 lv sẽ mở khoá bản đồ mới theo thứ tự mở khoá,mặc định bản đồ đầu tiên sẽ ko tính mở khoá,chỉ có bản đồ thứ 2 mới bắt đầu tính mở khoá,các nút bản đồ sẽ có biểu tượng khoá kiểu cái ổ khoá nó móc ở cạnh card nút bấm bản đồ đang khoá đó,khi đạt lv thì bẩm bản đồ sau đó khi vào thì bản đồ đc mở khoá sẽ có animation mở khoá ở góc nút bản đồ đó và hiện sáng nút bản đồ mới(các bản đồ này sẽ lưu vào database để đánh dấu các bản đồ đã mở khoá của player)  2 bên nút bản đồ gồm bên trái là mồi câu,bên phải là ba lô đã câu được.      Đến với giao diện chính thì nó sẽ có một nút vòng tròn là nút thả cần,khi bấm vào thì bên phải sẽ có thanh độ dài của dây tùy theo cần câu,cần càng xịn độ dài càng dài,bên trái sẽ là thanh sức mạnh(cái này lúc lv 1 sẽ là 1000 điểm sức mạnh,mỗi khi lên lv sẽ tăng thêm 100 điểm sức mạnh)cái cụm này đặt phía dưới một tí để hiển thị khoảng lớn phía trên có mặt nước sóng biển các thứ và trên đó có bóng cá và con cá,khi mà thả cần thì chờ ngẫu nhiên 3 đến 20s,lâu lâu nó sẽ tự thu hồi do chờ quá 25s,chờ và để cá cắn câu sau nó sẽ đổi thành giật cần và xung quanh nút có viền có hiệu ứng màu vàng mà xoay tròn xung quanh viền nút ấy,bấm giữ để kéo dây,tùy vào sức kéo của cần câu và sức mạnh của loài cá,nếu cá mạnh mà cần không giật đc thì đứt dây và để cá chạy thoát,nếu câu đc cá thì sẽ hiện popup tên cá kèm mức độ với cân nặng(con nặng nhất là 10tr kg,nhẹ nhất là 200 gram) cân của cá gồm bình thường,khá bình thường,mạnh,rất mạnh,hiếm,siêu cấp và huyền thoại,mỗi cấp độ sẽ có chữ màu khác nhau nhá,các loài cá đc câu sẽ cho vào ba lô,khi bấm vào ba lô sẽ thấy toàn bộ cá với số lượng kèm cấp độ của nó,phía dưới sẽ có nút bán cá,khi bấm vào sẽ chọn cá để bán hoặc bán tất cả nếu không chọn cá nào,nếu chọn cá thì loài cá nào có số lượng lớn hơn 1 thì sẽ hiện popup hỏi bán bao nhiêu con,có nút tất cả nếu ko nhập,nếu nhập số lượng thì hiện nút bấm bán thay bán tất cả.    Với nút mồi câu thì khi bấm vào sẽ có các mồi câu đang có gồm mồi câu thường(tăng tỉ lệ cá xuất hiện nhanh),mồi câu thần thánh(tăng tỉ lệ cá có cấp độ cao trung bình),mồi câu siêu đẳng(tăng tỉ lệ cá cân nặng lớn trong bản đồ đang chơi),mồi câu huyền thoại (tăng tỉ lệ cá huyền thoại xuất hiện,chỉ đc sử dụng với các map 5 trở lên).                         Thêm nút skill câu cá gồm sau đây(chỉ đc mở khoá bằng tiền và kim cương khi mua ở cửa hàng kỹ năng){
+  "skill_groups": [
+    {
+      "group_name": "Nhóm Kỹ Năng Kéo Cá (Chủ Động)",
+      "description": "Các chiêu thức bấm trực tiếp trong trận đấu để rút máu cá.",
+      "skills": [
+        {
+          "name": "Cú Giật Đầu Tiên (Nhất Điệu Khai Thiên Môn)",
+          "description": "Đòn giật cần mạnh mẽ lúc cá vừa cắn câu, gây một lượng sát thương lớn ngay lập tức."
+        },
+        {
+          "name": "Tuyệt Chiêu Kết Liễu (One Hit / Nhất Điệu Độc Tôn)",
+          "description": "Đòn dồn sát thương cực đại khi tích đầy thanh nộ, giúp kéo bay màu những con cá khó trị."
+        },
+        {
+          "name": "Khóa Vùng Nước (Bát Quái / Tiên Thiên Bát Quái)",
+          "description": "Làm giảm tốc độ bơi và hạn chế cá vùng vẫy trong một khoảng thời gian ngắn."
+        },
+        {
+          "name": "Bơm Thể Lực (Liều Chết Câu)",
+          "description": "Đốt sạch lượng thể lực còn lại để ép cá phải nổi lên mặt nước."
+        },
+        {
+          "name": "Đòn Đập Cần (Trọng Lực Ba Kích)",
+          "description": "Tốn rất nhiều thể lực (250 điểm) nhưng làm cá bị choáng, đứng yên vài giây."
+        }
+      ]
+    },
+    {
+      "group_name": "Nhóm Kỹ Năng Phòng Thủ & Giảm Tải (Cân Bằng Dây)",
+      "description": "Nhóm này dùng để cứu nguy khi thanh áp lực sắp đầy, tránh bị đứt dây câu.",
+      "skills": [
+        {
+          "name": "Xả Áp Lực Khẩn Cấp (Ông Bà Cụ Lăn Vào Chăn)",
+          "description": "Giảm ngay lập tức nhiệt độ và áp lực của dây câu khi cá kéo quá căng."
+        },
+        {
+          "name": "Mượn Lực Triệt Tiêu (Thái Cực Trấn Hải)",
+          "description": "Lấy chính lực kéo của cá để chuyển hóa thành lực thu dây cho mình mà không tốn sức."
+        },
+        {
+          "name": "Gia Cố Dây Câu (Lưỡng Nghi / Tứ Tượng)",
+          "description": "Tăng tạm thời độ bền và giới hạn chịu đựng của dây cáp để chịu được những cú thúc mạnh từ cá boss."
+        },
+        {
+          "name": "Vũ Điệu Giảm Chấn",
+          "description": "Giúp né tránh hoặc triệt tiêu các cú giật nảy đột ngột từ cá lớn."
+        }
+      ]
+    },
+    {
+      "group_name": "Nhóm Kỹ Năng Trợ Thủ (Gọi Đồng Đội)",
+      "description": "Các kỹ năng đặc biệt dùng để triệu hồi trợ thủ hỗ trợ kéo cá.",
+      "skills": [
+        {
+          "name": "Triệu Hồi Phân Thân V1",
+          "description": "Gọi một bóng ma khổng lồ phía sau để tăng lực kéo cần."
+        },
+        {
+          "name": "Triệu Hồi Phân Thân V2 (Chiêu Cấm Kỵ)",
+          "description": "Bản nâng cấp mạnh nhất, nhân đôi sát thương kéo để chuyên trị các loại boss cá đổi màu khó tính."
+        },
+        {
+          "name": "Đồng Bộ Lực Kéo",
+          "description": "Kỹ năng bị động tự động cộng dồn lực của trợ thủ vào nhân vật chính."
+        }
+      ]
+    },
+    {
+      "group_name": "Nhóm Kỹ Năng Bổ Trợ (Hỗ Trợ)",
+      "description": "Các kỹ năng hỗ trợ tăng hiệu quả câu và giảm thao tác.",
+      "skills": [
+        {
+          "name": "Thả Thính Cường Hóa (Thơm Như Chó Già)",
+          "description": "Tăng độ hấp dẫn của mồi, giúp cá cắn câu nhanh hơn và tăng tỷ lệ chí mạng khi kéo."
+        },
+        {
+          "name": "Kéo Tự Động (Động Cơ Máy Kéo)",
+          "description": "Dùng máy móc để tự giữ nhịp kéo, giúp bạn rảnh tay và duy trì lực kéo đều đặn."
+        }
+      ]
+    }
+  ] Các kỹ năng trong cửa hàng câu cá đây,cái đắt nhất có giá 100tr và sau khi đã mua sẽ có trong mục skill,mỗi skill sẽ có lv,tối đa 20lv,mỗi lần nâng cấp sẽ có giá bằng 1/10 số tiền mua skill đó, khi đang câu cá,kiểu các nút skill sẽ xếp phía dưới cụm nút thả cần các thứ ấy bấm skill nào là tác dụng skill đó hoạt động và chờ hồi chiêu tùy thời gian với sức mạnh của skill đó,càng mạnh hồi chiêu càng lâu,yếu nhất thì 5s,lâu thì 30s,à khi giữ nút giật cần sẽ có thanh máu của loài cá đang câu đó,thêm animation máu tụt dần ,câu thành công thì ngoài thông tin loài cá,cân nặng,mức độ thì có thêm cộng điểm cho lv,cho rank nhá.à quên skill tối đa cho trang bị 3 skill thôi nhá.Ok đã xong game câu cá,bây giờ đến với chức năng khác,phía bên dưới có thanh nút bấm chức năng gồm hiện giờ đã có nút câu cá,giờ đến cửa hàng,khi vào cửa hàng sẽ có các mục gồm cần câu,kỹ năng và trang trí,ở cần câu thì đã có 20 cái,tên cần sẽ tự đặt đi nhá,mô tả gồm +điểm sức mạnh,+sát thương,+tỉ lệ cá mức độ cao hơn,các mô tả này sẽ tăng theo cần và giá tiền,càng đắt càng mạnh,với skill thì tôi cũng đã nói rồi,mô tả cubgx có rồi và game làm theo mô tả đó gắn với sức mạnh skill đó thôi,cuối cùng là trang trí,ở trang trí khi bấm vào lại có thêm 3 mục nhỏ nữa gồm khung chat,avatar,khung viền hồ sơ khi xem hồ sơ người mua nó thì sẽ hiện viền màu mà họ trang bị cho mọi người xem ấy,với màu khung chat sẽ có 16 kiểu màu gồm xanh đỏ tím vàng lục lam và màu gradient trộn vào nhau và có cả viền cầu vồng sẽ kiểu gradient đổi màu ấy,viền avartar cũng vậy,kiểu chat thì khung chat chứa tin nhắn người đó chat sẽ trang bị cái trang trí người đó mua và có,người khác cũng sẽ thấy nó,viền avartar cũn có 16 màu như thế ,viền hồ sơ cũng có 16 màu như vậy,giá thì đắt nhất là 50tr cho viền cầu vồng 
