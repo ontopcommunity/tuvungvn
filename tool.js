@@ -1,514 +1,776 @@
-// ==UserScript==
-// @name         Noitu.fun Auto Multi-Acc
-// @namespace    https://github.com/ontopcommunity/tuvungvn
-// @version      4.0.0
-// @description  Auto rank Ngẫu nhiên, cày nối từ, multi-acc LV2, tạo acc API — viết lại sạch
-// @author       ontopcommunity
-// @match        https://www.noitu.fun/*
-// @match        https://noitu.fun/*
-// @icon         https://www.noitu.fun/favicon.ico
-// @grant        none
-// @run-at       document-idle
-// ==/UserScript==
-
-(async function () {
-  "use strict";
-
-  if (window.__NOITU_AUTO_V4__) return;
-  window.__NOITU_AUTO_V4__ = true;
-
-  const API = "https://api.noitu.fun/api/v1";
-  const DICT_URL = "https://raw.githubusercontent.com/ontopcommunity/tuvungvn/main/filtered_words.txt";
-  const DICT_FALLBACK = "https://raw.githubusercontent.com/ontopcommunity/tuvungvn/refs/heads/main/tuvungvn.txt";
-  const SUGGEST = "https://dictionaryvip.vercel.app/api/v1/suggest?q=";
-  const TARGET_LV = 2;
-  const ACC_KEY = "noitu_bot_accounts_v4";
-  const ACTIVE_KEY = "noitu_bot_active_v4";
-
-  // Mode Ngẫu nhiên (class từ tool.js gốc)
-  const MODE_CLASSES = [
-    "multiple-mode-lobby_rankedBtnRandom__c1EwH",
-    "ranked-lobby_rankCardRandom__Br_il",
-  ];
-  const MODE_TITLE = "ngẫu nhiên";
-
-  // Card xếp hạng (user)
-  const RANK_SELS = [
-    "div.main:nth-of-type(4) > div.main-center > div.page_mainContent__NQxPz:nth-of-type(1) > div.page_modeGridWrapper__J8Eq9:nth-of-type(3) > div.page_modeGrid__nPjbC > a.page_modeCard__bzgue.page_modeCoral__HD18C:nth-of-type(2)",
-    "a.page_modeCard__bzgue.page_modeCoral__HD18C",
-    "a[class*='modeCoral']",
-  ];
-
-  let dictionary = [];
-  let byFirst = Object.create(null);
-  let apiCache = new Map();
-  let usedAnswers = new Set();
-  let currentQuestion = "";
-  let running = true;
-  let busy = false;
-  let lastLobbyClick = 0;
-  let rankEntered = false;
-  let accounts = [];
-  let activeCode = null;
-
-  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
-  function isVisible(el) {
-    if (!el || !el.getBoundingClientRect) return false;
-    const st = window.getComputedStyle(el);
-    if (st.display === "none" || st.visibility === "hidden" || st.opacity === "0") return false;
-    const r = el.getBoundingClientRect();
-    if (r.width < 2 || r.height < 2) return false;
-    if (r.bottom < 0 || r.top > innerHeight || r.right < 0 || r.left > innerWidth) return false;
-    return true;
-  }
-
-  function hardClick(el) {
-    if (!el || !isVisible(el)) return false;
-    const fire = (T, type, extra) => {
-      try {
-        el.dispatchEvent(new T(type, { bubbles: true, cancelable: true, view: window, ...extra }));
-      } catch (_) {}
-    };
-    ["pointerover", "pointerdown", "pointerup"].forEach((t) => fire(PointerEvent, t));
-    ["mouseover", "mousedown", "mouseup", "click"].forEach((t) => fire(MouseEvent, t));
+(async () => {
     try {
-      el.click();
-    } catch (_) {}
-    try {
-      HTMLElement.prototype.click.call(el);
-    } catch (_) {}
-    return true;
-  }
+        const styleSheet = document.createElement("style");
+        styleSheet.textContent = `
+            @keyframes rainbowBorderAnim {
+                0% { border-color: #ff0000; box-shadow: 0 0 8px #ff0000; }
+                17% { border-color: #ff8000; box-shadow: 0 0 8px #ff8000; }
+                33% { border-color: #ffff00; box-shadow: 0 0 8px #ffff00; }
+                50% { border-color: #00ff00; box-shadow: 0 0 8px #00ff00; }
+                67% { border-color: #0000ff; box-shadow: 0 0 8px #0000ff; }
+                83% { border-color: #8000ff; box-shadow: 0 0 8px #8000ff; }
+                100% { border-color: #ff0000; box-shadow: 0 0 8px #ff0000; }
+            }
+            .rainbow-border {
+                animation: rainbowBorderAnim 2s linear infinite;
+                border: 2px solid;
+            }
+        `;
+        document.head.appendChild(styleSheet);
 
-  function inGame() {
-    return !!(
-      document.querySelector("input.word-link-answer-input_input__L6PK2") ||
-      document.querySelector("a.word-detail_wordDetailWord__1DYml") ||
-      document.querySelector("button.police-answer-input_wordButton__P3fhW") ||
-      document.querySelector("input.va-tu-answer-input_input__N9YZm") ||
-      document.querySelector(".stick-answer-input_character__N56_X")
-    );
-  }
+        const popupId = 'bot-noi-tu-center-popup';
+        const oldPopup = document.getElementById(popupId);
+        if (oldPopup) oldPopup.remove();
 
-  // ── storage ──
-  function loadAcc() {
-    try {
-      accounts = JSON.parse(localStorage.getItem(ACC_KEY) || "[]");
-    } catch {
-      accounts = [];
-    }
-    activeCode = localStorage.getItem(ACTIVE_KEY) || (accounts[0] && accounts[0].code) || null;
-  }
-  function saveAcc() {
-    localStorage.setItem(ACC_KEY, JSON.stringify(accounts));
-    if (activeCode) localStorage.setItem(ACTIVE_KEY, activeCode);
-  }
-  function upsert(acc) {
-    const i = accounts.findIndex((a) => a.code === acc.code);
-    if (i >= 0) accounts[i] = { ...accounts[i], ...acc };
-    else accounts.push(acc);
-    saveAcc();
-    renderList();
-  }
-  function getActive() {
-    return accounts.find((a) => a.code === activeCode) || accounts[0] || null;
-  }
-  function applyToken(acc) {
-    if (!acc) return;
-    try {
-      localStorage.setItem("accessToken", acc.accessToken);
-      localStorage.setItem("token", acc.accessToken);
-      localStorage.setItem("refreshToken", acc.refreshToken || "");
-      localStorage.setItem("userCode", acc.code);
-      localStorage.setItem("code", acc.code);
-      sessionStorage.setItem("accessToken", acc.accessToken);
-    } catch (_) {}
-  }
-  async function switchAcc(acc) {
-    activeCode = acc.code;
-    saveAcc();
-    applyToken(acc);
-    usedAnswers.clear();
-    currentQuestion = "";
-    rankEntered = false;
-    setStatus("Acc: " + (acc.name || acc.code).slice(0, 20));
-    renderList();
-  }
+        const popup = document.createElement('div');
+        popup.id = popupId;
+        Object.assign(popup.style, {
+            position: 'fixed',
+            top: '15px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: '9999999',
+            background: 'rgba(20, 20, 20, 0.95)',
+            color: '#fff',
+            fontFamily: 'sans-serif',
+            borderRadius: '8px',
+            display: 'flex',
+            flexDirection: 'column',
+            userSelect: 'none',
+            overflow: 'hidden',
+            transition: 'all 0.2s ease'
+        });
 
-  // ── API ──
-  async function apiCreate() {
-    const r = await fetch(API + "/user/init", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: null, code: null }),
-    });
-    if (!r.ok) throw new Error("HTTP " + r.status);
-    return r.json();
-  }
-  async function apiUser(code, token) {
-    const r = await fetch(API + "/user/get?code=" + encodeURIComponent(code), {
-      headers: { Authorization: "Bearer " + token },
-    });
-    if (!r.ok) throw new Error("HTTP " + r.status);
-    return r.json();
-  }
+        const header = document.createElement('div');
+        header.className = 'rainbow-border';
+        Object.assign(header.style, {
+            padding: '8px 20px',
+            background: '#111',
+            textAlign: 'center',
+            fontWeight: 'bold',
+            color: '#0ff',
+            cursor: 'pointer',
+            fontSize: '13px',
+            whiteSpace: 'nowrap',
+            borderRadius: 'inherit'
+        });
+        header.textContent = 'Bot Nối Từ · Ngẫu nhiên';
 
-  // ── dictionary ──
-  async function loadDict() {
-    for (const url of [DICT_URL, DICT_FALLBACK]) {
-      try {
-        const r = await fetch(url, { cache: "no-store" });
-        if (!r.ok) continue;
-        const text = await r.text();
-        dictionary = text
-          .split("\n")
-          .map((l) => l.trim().toLowerCase())
-          .filter((w) => w.includes(" "));
-        byFirst = Object.create(null);
-        for (const w of dictionary) {
-          const f = w.split(/\s+/)[0];
-          (byFirst[f] || (byFirst[f] = [])).push(w);
-        }
-        setStatus("Từ điển: " + dictionary.length);
-        return;
-      } catch (_) {}
-    }
-    setStatus("Không tải được từ điển");
-  }
+        const body = document.createElement('div');
+        Object.assign(body.style, {
+            padding: '12px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px',
+            borderLeft: '1px solid #333',
+            borderRight: '1px solid #333',
+            borderBottom: '1px solid #333',
+            borderBottomLeftRadius: '8px',
+            borderBottomRightRadius: '8px',
+            background: 'rgba(20, 20, 20, 0.95)'
+        });
 
-  async function suggest(q) {
-    const key = (q || "").toLowerCase();
-    if (!key) return [];
-    if (apiCache.has(key)) return apiCache.get(key);
-    try {
-      const r = await fetch(SUGGEST + encodeURIComponent(key), { mode: "cors" });
-      if (!r.ok) {
-        apiCache.set(key, []);
-        return [];
-      }
-      let data;
-      try {
-        data = await r.json();
-      } catch {
-        const t = await r.text();
-        const m = t.match(/\{[\s\S]*\}/);
-        data = m ? JSON.parse(m[0]) : null;
-      }
-      let list = [];
-      if (data && Array.isArray(data.suggestions)) list = data.suggestions;
-      else if (Array.isArray(data)) list = data;
-      list = list
-        .map((s) => String(s).trim().toLowerCase())
-        .filter((s) => s.split(/\s+/).length >= 2);
-      apiCache.set(key, list);
-      return list;
-    } catch {
-      apiCache.set(key, []);
-      return [];
-    }
-  }
+        const statusText = document.createElement('div');
+        Object.assign(statusText.style, {
+            fontSize: '11px',
+            textAlign: 'center',
+            color: '#aaa',
+            marginBottom: '4px',
+            fontWeight: 'bold'
+        });
+        statusText.textContent = 'Auto Play: OFF';
 
-  // ── UI ──
-  function setStatus(msg) {
-    const el = document.getElementById("na-status");
-    if (el) el.textContent = msg;
-  }
+        const grid = document.createElement('div');
+        Object.assign(grid.style, {
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: '6px'
+        });
 
-  function renderList() {
-    const box = document.getElementById("na-list");
-    if (!box) return;
-    if (!accounts.length) {
-      box.innerHTML = '<div style="padding:10px;color:#666;text-align:center">Chưa có acc</div>';
-      return;
-    }
-    box.innerHTML = accounts
-      .map((a) => {
-        const done = (parseInt(a.level) || 1) >= TARGET_LV;
-        const on = a.code === activeCode;
-        const col = done ? "#0f0" : on ? "#0ff" : "#ccc";
-        return `<div data-c="${a.code}" style="padding:6px 8px;border-bottom:1px solid #2a2a2a;cursor:pointer;color:${col};font-size:12px">
-          <b>${(a.name || a.code).slice(0, 16)}</b>
-          <span style="float:right">lv${a.level || 1} xp${a.xp || 0}</span>
-        </div>`;
-      })
-      .join("");
-    box.querySelectorAll("[data-c]").forEach((el) => {
-      el.onclick = () => {
-        const a = accounts.find((x) => x.code === el.getAttribute("data-c"));
-        if (a) switchAcc(a);
-      };
-    });
-  }
+        const modes = [
+            { classNames: ["ranked-lobby_rankCardRandom__Br_il", "multiple-mode-lobby_rankedBtnRandom__c1EwH"], title: "Ngẫu nhiên" }
+        ];
 
-  function buildUI() {
-    const old = document.getElementById("noitu-auto-v4");
-    if (old) old.remove();
+        let activeMode = null;
+        let isMinimized = false;
 
-    const css = document.createElement("style");
-    css.textContent = `
-      #noitu-auto-v4 {
-        position: fixed; top: 12px; right: 12px; width: 280px; z-index: 2147483646;
-        background: rgba(14,14,20,.96); color: #eee; border-radius: 10px;
-        border: 1px solid #333; font-family: system-ui,sans-serif;
-        box-shadow: 0 8px 28px rgba(0,0,0,.45); overflow: hidden;
-      }
-      #noitu-auto-v4 .hd {
-        padding: 9px 12px; font-weight: 700; font-size: 13px; color: #0ff;
-        background: linear-gradient(90deg,#0ff2,#f0f2); cursor: move;
-        border-bottom: 1px solid #333;
-      }
-      #noitu-auto-v4 .row { display: flex; gap: 6px; padding: 8px; flex-wrap: wrap; }
-      #noitu-auto-v4 button {
-        flex: 1; min-width: 72px; padding: 7px; border: 0; border-radius: 6px;
-        background: #222; color: #0ff; cursor: pointer; font-size: 11px; font-weight: 600;
-      }
-      #noitu-auto-v4 button:hover { background: #333; }
-      #na-list { max-height: 200px; overflow-y: auto; border-top: 1px solid #333; }
-      #na-status { padding: 7px 10px; font-size: 11px; color: #8f8; border-top: 1px solid #333; }
-    `;
-    document.head.appendChild(css);
+        const stopBtn = document.createElement('button');
+        stopBtn.textContent = '⏹ DỪNG';
+        Object.assign(stopBtn.style, {
+            background: '#800000',
+            color: '#fff',
+            border: '1px solid #f00',
+            padding: '8px',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontSize: '11px',
+            fontWeight: 'bold',
+            marginTop: '2px',
+            display: 'none'
+        });
 
-    const panel = document.createElement("div");
-    panel.id = "noitu-auto-v4";
-    panel.innerHTML = `
-      <div class="hd">Noitu Auto · Ngẫu nhiên · LV${TARGET_LV}</div>
-      <div class="row">
-        <button id="na-toggle">⏹ Dừng</button>
-        <button id="na-create">+ Tạo acc</button>
-        <button id="na-rank">Vào rank</button>
-      </div>
-      <div id="na-list"></div>
-      <div id="na-status">Đang tải…</div>
-    `;
-    document.body.appendChild(panel);
+        modes.forEach(mode => {
+            const btn = document.createElement('button');
+            btn.className = 'rainbow-border';
+            btn.textContent = mode.title;
+            Object.assign(btn.style, {
+                background: '#2a2a2a',
+                color: '#fff',
+                padding: '8px 4px',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '11px',
+                fontWeight: 'bold',
+                transition: 'background 0.2s'
+            });
+            btn.onmouseover = () => btn.style.background = '#3a3a3a';
+            btn.onmouseout = () => btn.style.background = '#2a2a2a';
+            btn.onclick = () => {
+                activeMode = mode;
+                statusText.textContent = `Auto Play: ${mode.title}`;
+                statusText.style.color = '#0f0';
+                grid.style.display = 'none';
+                stopBtn.style.display = 'block';
+            };
+            grid.appendChild(btn);
+        });
 
-    // drag
-    const hd = panel.querySelector(".hd");
-    let drag = false,
-      ox = 0,
-      oy = 0;
-    hd.onmousedown = (e) => {
-      drag = true;
-      ox = e.clientX - panel.getBoundingClientRect().left;
-      oy = e.clientY - panel.getBoundingClientRect().top;
-    };
-    document.addEventListener("mousemove", (e) => {
-      if (!drag) return;
-      panel.style.right = "auto";
-      panel.style.left = e.clientX - ox + "px";
-      panel.style.top = e.clientY - oy + "px";
-    });
-    document.addEventListener("mouseup", () => {
-      drag = false;
-    });
-
-    document.getElementById("na-toggle").onclick = (ev) => {
-      running = !running;
-      ev.target.textContent = running ? "⏹ Dừng" : "▶ Chạy";
-      setStatus(running ? "Đang chạy · Ngẫu nhiên" : "Đã dừng");
-    };
-    document.getElementById("na-create").onclick = async () => {
-      try {
-        setStatus("Đang tạo acc…");
-        const d = await apiCreate();
-        const acc = {
-          code: d.code,
-          accessToken: d.accessToken,
-          refreshToken: d.refreshToken,
-          name: d.name || "",
-          level: String(d.level || 1),
-          xp: "0",
+        stopBtn.onclick = () => {
+            if (activeMode) {
+                activeMode = null;
+                statusText.textContent = 'Auto Play: OFF';
+                statusText.style.color = '#aaa';
+                stopBtn.textContent = '▶ CHẠY';
+            } else {
+                activeMode = modes[0];
+                statusText.textContent = 'Auto Play: ' + modes[0].title;
+                statusText.style.color = '#0f0';
+                stopBtn.textContent = '⏹ DỪNG';
+            }
         };
-        upsert(acc);
-        await switchAcc(acc);
-        setStatus("Tạo OK: " + acc.code.slice(-12));
-      } catch (e) {
-        setStatus("Tạo lỗi: " + e.message);
-      }
-    };
-    document.getElementById("na-rank").onclick = () => {
-      rankEntered = false;
-      tryEnterRank();
-    };
 
-    renderList();
-  }
 
-  // ── rank entry (1 lần khi thấy nút) ──
-  function tryEnterRank() {
-    if (rankEntered || inGame()) return false;
-    for (const sel of RANK_SELS) {
-      const el = document.querySelector(sel);
-      if (isVisible(el)) {
-        hardClick(el);
-        rankEntered = true;
-        setStatus("Đã vào xếp hạng");
-        return true;
-      }
-    }
-    return false;
-  }
+        // Multi-acc panel
+        const ACC_KEY = "noitu_bot_accounts_v3";
+        const ACTIVE_KEY = "noitu_bot_active_code";
+        const API_BASE = "https://api.noitu.fun/api/v1";
+        const TARGET_LV = 2;
+        let botAccounts = [];
+        try { botAccounts = JSON.parse(localStorage.getItem(ACC_KEY) || "[]"); } catch (e) { botAccounts = []; }
 
-  // ── lobby: chỉ bấm Ngẫu nhiên khi thấy & ngoài ván ──
-  function tryLobbyMode() {
-    if (!running || inGame()) return;
-    if (Date.now() - lastLobbyClick < 1500) return;
-
-    let btn = null;
-    for (const cls of MODE_CLASSES) {
-      const el = document.querySelector("." + cls);
-      if (isVisible(el)) {
-        btn = el;
-        break;
-      }
-    }
-    if (!btn) {
-      btn = [...document.querySelectorAll("button, a, div[role=button], [class*=rank], [class*=lobby]")].find(
-        (b) => isVisible(b) && (b.textContent || "").trim().toLowerCase() === MODE_TITLE
-      );
-    }
-    if (btn && isVisible(btn)) {
-      hardClick(btn);
-      lastLobbyClick = Date.now();
-      setStatus("Queue: Ngẫu nhiên");
-    }
-  }
-
-  // ── trả lời nối từ (logic tool.js) ──
-  async function answerWordLink() {
-    const wordEl = document.querySelector("a.word-detail_wordDetailWord__1DYml");
-    const inputEl = document.querySelector("input.word-link-answer-input_input__L6PK2");
-    const svg = document.querySelector("svg.lucide-send, svg.lucide.lucide-send");
-    if (!wordEl || !inputEl || !isVisible(inputEl)) return;
-
-    const q = (wordEl.textContent || "").trim();
-    if (!q) return;
-    if (q !== currentQuestion) {
-      currentQuestion = q;
-      usedAnswers.clear();
-    }
-
-    const last = q.split(/\s+/).pop().toLowerCase();
-    let pool = (byFirst[last] || []).filter((w) => !usedAnswers.has(w));
-    if (!pool.length) {
-      const api = await suggest(last);
-      pool = api.filter((p) => p.split(/\s+/)[0] === last && !usedAnswers.has(p));
-    }
-    if (!pool.length) return;
-
-    const ans = pool[Math.floor(Math.random() * pool.length)];
-    usedAnswers.add(ans);
-
-    inputEl.focus();
-    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set;
-    setter.call(inputEl, ans);
-    inputEl.dispatchEvent(new Event("input", { bubbles: true }));
-    inputEl.dispatchEvent(new Event("change", { bubbles: true }));
-
-    const sendBtn = svg ? svg.closest("button") : null;
-    if (sendBtn && isVisible(sendBtn)) hardClick(sendBtn);
-    else {
-      inputEl.dispatchEvent(
-        new KeyboardEvent("keydown", { key: "Enter", code: "Enter", keyCode: 13, bubbles: true })
-      );
-    }
-    setStatus("→ " + ans.slice(0, 28));
-  }
-
-  // ── police / va-tu đơn giản (có thì trả) ──
-  async function answerExtras() {
-    const police = [...document.querySelectorAll("button.police-answer-input_wordButton__P3fhW")];
-    if (police.length) {
-      for (const btn of police) {
-        if (!isVisible(btn)) continue;
-        const t = (
-          btn.querySelector(".police-answer-input_wordText__lEN0Q")?.textContent ||
-          btn.textContent ||
-          ""
-        )
-          .trim()
-          .toLowerCase();
-        if (dictionary.includes(t)) {
-          hardClick(btn);
-          return;
+        const accBox = document.createElement("div");
+        Object.assign(accBox.style, {
+            maxHeight: "130px", overflowY: "auto", border: "1px solid #333",
+            borderRadius: "4px", fontSize: "11px", marginTop: "4px", width: "100%"
+        });
+        const createAccBtn = document.createElement("button");
+        createAccBtn.textContent = "+ Tạo acc API";
+        Object.assign(createAccBtn.style, {
+            background: "#1a3a2a", color: "#0f0", border: "1px solid #0a0",
+            padding: "8px", borderRadius: "4px", cursor: "pointer", fontSize: "11px",
+            marginTop: "6px", width: "100%", fontWeight: "bold"
+        });
+        function saveAccs() { localStorage.setItem(ACC_KEY, JSON.stringify(botAccounts)); }
+        function renderAccs() {
+            accBox.innerHTML = "";
+            if (!botAccounts.length) {
+                accBox.innerHTML = '<div style="padding:8px;color:#666;text-align:center">Chưa có acc</div>';
+                return;
+            }
+            botAccounts.forEach(function(a) {
+                var row = document.createElement("div");
+                var active = localStorage.getItem(ACTIVE_KEY) === a.code;
+                var done = (parseInt(a.level) || 1) >= TARGET_LV;
+                row.style.cssText = "padding:5px 8px;border-bottom:1px solid #2a2a2a;cursor:pointer;color:" + (done ? "#0f0" : active ? "#0ff" : "#ccc");
+                row.innerHTML = "<b>" + (a.name || a.code).slice(0, 16) + "</b><span style=\"float:right\">lv" + (a.level || 1) + " xp" + (a.xp || 0) + "</span>";
+                row.onclick = function() {
+                    localStorage.setItem(ACTIVE_KEY, a.code);
+                    try {
+                        localStorage.setItem("accessToken", a.accessToken);
+                        localStorage.setItem("token", a.accessToken);
+                        localStorage.setItem("refreshToken", a.refreshToken || "");
+                        localStorage.setItem("userCode", a.code);
+                    } catch (e) {}
+                    statusText.textContent = "Acc: " + (a.name || a.code).slice(0, 18);
+                    renderAccs();
+                };
+                accBox.appendChild(row);
+            });
         }
-      }
+        createAccBtn.onclick = async function() {
+            createAccBtn.disabled = true;
+            createAccBtn.textContent = "Đang tạo…";
+            try {
+                var r = await fetch(API_BASE + "/user/init", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ id: null, code: null })
+                });
+                if (!r.ok) throw new Error("HTTP " + r.status);
+                var d = await r.json();
+                var acc = { code: d.code, accessToken: d.accessToken, refreshToken: d.refreshToken, name: d.name || "", level: String(d.level || 1), xp: "0" };
+                var ix = botAccounts.findIndex(function(x) { return x.code === acc.code; });
+                if (ix >= 0) botAccounts[ix] = acc; else botAccounts.push(acc);
+                saveAccs();
+                localStorage.setItem(ACTIVE_KEY, acc.code);
+                renderAccs();
+                statusText.textContent = "Tạo OK · " + acc.code.slice(-10);
+                statusText.style.color = "#0f0";
+            } catch (e) {
+                statusText.textContent = "Tạo lỗi: " + e.message;
+                statusText.style.color = "#f66";
+            }
+            createAccBtn.disabled = false;
+            createAccBtn.textContent = "+ Tạo acc API";
+        };
+        setInterval(async function() {
+            var code = localStorage.getItem(ACTIVE_KEY);
+            var acc = botAccounts.find(function(a) { return a.code === code; });
+            if (!acc || !acc.accessToken) return;
+            try {
+                var r = await fetch(API_BASE + "/user/get?code=" + encodeURIComponent(acc.code), {
+                    headers: { Authorization: "Bearer " + acc.accessToken }
+                });
+                if (!r.ok) return;
+                var u = await r.json();
+                acc.level = String(u.level != null ? u.level : acc.level);
+                acc.xp = String(u.experiencePoints != null ? u.experiencePoints : 0);
+                saveAccs();
+                renderAccs();
+                if ((parseInt(acc.level) || 1) >= TARGET_LV) {
+                    var next = botAccounts.find(function(a) { return (parseInt(a.level) || 1) < TARGET_LV; });
+                    if (next) {
+                        localStorage.setItem(ACTIVE_KEY, next.code);
+                        try {
+                            localStorage.setItem("accessToken", next.accessToken);
+                            localStorage.setItem("token", next.accessToken);
+                            localStorage.setItem("userCode", next.code);
+                        } catch (e) {}
+                        statusText.textContent = "Xoay → " + (next.name || next.code).slice(0, 14);
+                    }
+                }
+            } catch (e) {}
+        }, 15000);
+        renderAccs();
+
+        body.appendChild(statusText);
+        body.appendChild(grid);
+        body.appendChild(stopBtn);
+        body.appendChild(accBox);
+        body.appendChild(createAccBtn);
+
+        popup.appendChild(header);
+        popup.appendChild(body);
+        document.body.appendChild(popup);
+
+        header.onclick = () => {
+            isMinimized = !isMinimized;
+            if (isMinimized) {
+                body.style.display = 'none';
+                header.style.borderBottomLeftRadius = '8px';
+                header.style.borderBottomRightRadius = '8px';
+            } else {
+                body.style.display = 'flex';
+                header.style.borderBottomLeftRadius = '0';
+                header.style.borderBottomRightRadius = '0';
+            }
+        };
+
+        const dictRes = await fetch("https://raw.githubusercontent.com/ontopcommunity/tuvungvn/refs/heads/main/tuvungvn.txt", {
+            mode: 'cors',
+            headers: {
+                "Accept": "text/plain, */*"
+            }
+        });
+        const dictText = await dictRes.text();
+        const dictionary = dictText.split('\n')
+            .map(line => line.trim())
+            .filter(line => line.length > 0 && line.includes(' '));
+
+        const apiCache = new Map();
+
+        const fetchApiSuggestions = async (q) => {
+            if (!q) return [];
+            const key = q.toLowerCase();
+            if (apiCache.has(key)) return apiCache.get(key);
+            
+            try {
+                const targetUrl = `https://dictionaryvip.vercel.app/api/v1/suggest?q=${encodeURIComponent(key)}`;
+                const res = await fetch(targetUrl, { mode: "cors" });
+                
+                if (res.ok) {
+                    const textData = await res.text();
+                    let data = null;
+                    try {
+                        data = JSON.parse(textData);
+                    } catch (e) {
+                        const match = textData.match(/\{[\s\S]*\}/);
+                        if (match) data = JSON.parse(match[0]);
+                    }
+                    if (data && Array.isArray(data.suggestions)) {
+                        const filtered = data.suggestions.filter(s => {
+                            const words = s.trim().split(/\s+/);
+                            return words.length === 2;
+                        });
+                        apiCache.set(key, filtered);
+                        return filtered;
+                    }
+                }
+            } catch (e) {}
+            
+            apiCache.set(key, []);
+            return [];
+        };
+
+        const sendChatMessage = async (msg) => {
+            const input = document.getElementById('chat-input') || document.querySelector('textarea.BaseChat_chatTextarea__SCNBu');
+            if (!input) return;
+            
+            input.focus();
+            
+            const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value');
+            if (nativeSetter && nativeSetter.set) {
+                nativeSetter.set.call(input, msg);
+            } else {
+                input.value = msg;
+            }
+            
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+            
+            await new Promise(r => setTimeout(r, 100));
+            
+            const btn = document.querySelector('button.BaseChat_sendBtn__vJosN');
+            
+            if (btn) {
+                const pointerEvents = ["pointerover", "pointerenter", "pointermove", "pointerdown", "pointerup"];
+                pointerEvents.forEach(evt => {
+                    try { btn.dispatchEvent(new PointerEvent(evt, { bubbles: true, cancelable: true })); } catch (e) {}
+                });
+                
+                const mouseEvents = ["mouseover", "mouseenter", "mousemove", "mousedown", "mouseup", "click"];
+                mouseEvents.forEach(evt => {
+                    try { btn.dispatchEvent(new MouseEvent(evt, { bubbles: true, cancelable: true })); } catch (e) {}
+                });
+                
+                try { btn.click(); } catch (e) {}
+            } else {
+                input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }));
+                input.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }));
+            }
+        };
+
+
+
+
+        let currentTargetQuestion = "";
+        let usedAnswers = new Set();
+        let lastAnagramHash = "";
+        let usedAnagramAnswers = new Set();
+        let lastVaTuHash = "";
+        let usedVaTuAnswers = new Set();
+        let lastPoliceHash = "";
+        let isProcessing = false;
+        let lastLobbyBtnTime = 0;
+
+        const escapeRegExp = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+        const processQuestion = async () => {
+            if (isProcessing) return;
+            isProcessing = true;
+
+            try {
+                const triggerEvent = (element, eventName, EventClass, options = {}) => {
+                    try {
+                        const event = new EventClass(eventName, { bubbles: true, cancelable: true, ...options });
+                        element.dispatchEvent(event);
+                    } catch (e) {}
+                };
+
+                const inGameNow = !!(
+                    document.querySelector("input.word-link-answer-input_input__L6PK2") ||
+                    document.querySelector("a.word-detail_wordDetailWord__1DYml") ||
+                    document.querySelector("button.police-answer-input_wordButton__P3fhW") ||
+                    document.querySelector("input.va-tu-answer-input_input__N9YZm") ||
+                    document.querySelector(".stick-answer-input_character__N56_X")
+                );
+                const isVisibleEl = (el) => {
+                    if (!el) return false;
+                    const st = window.getComputedStyle(el);
+                    if (st.display === "none" || st.visibility === "hidden" || st.opacity === "0") return false;
+                    const r = el.getBoundingClientRect();
+                    return r.width > 2 && r.height > 2 && r.bottom > 0 && r.top < window.innerHeight;
+                };
+                if (activeMode && !inGameNow && Date.now() - lastLobbyBtnTime > 1500) {
+                    let targetBtn = null;
+                    for (const cls of activeMode.classNames) {
+                        if (cls) {
+                            const el = document.querySelector("." + cls);
+                            if (el && isVisibleEl(el)) { targetBtn = el; break; }
+                        }
+                    }
+                    if (!targetBtn) {
+                        const allInteractables = Array.from(document.querySelectorAll("button, div[role='button'], .ranked-lobby_rankCard__qP4hM, a, [class*='multiple-mode-lobby']"));
+                        targetBtn = allInteractables.find(b => {
+                            const t = b.textContent;
+                            return t && t.trim().toLowerCase() === activeMode.title.toLowerCase() && isVisibleEl(b);
+                        });
+                    }
+                    if (targetBtn && isVisibleEl(targetBtn)) {
+                        lastLobbyBtnTime = Date.now();
+                        triggerEvent(targetBtn, "mouseover", MouseEvent);
+                        triggerEvent(targetBtn, "mousedown", MouseEvent);
+                        triggerEvent(targetBtn, "mouseup", MouseEvent);
+                        triggerEvent(targetBtn, "click", MouseEvent);
+                        try { targetBtn.click(); } catch (e) {}
+                        try { HTMLButtonElement.prototype.click.call(targetBtn); } catch (e) {}
+                        try { HTMLElement.prototype.click.call(targetBtn); } catch (e) {}
+                    }
+                }
+
+                const policeButtons = document.querySelectorAll("button.police-answer-input_wordButton__P3fhW");
+                if (policeButtons.length > 0) {
+                    const options = Array.from(policeButtons).map(btn => ({
+                        element: btn,
+                        text: btn.querySelector(".police-answer-input_wordText__lEN0Q")?.textContent.trim().toLowerCase() || btn.textContent.trim().toLowerCase()
+                    }));
+
+                    const currentHash = options.map(o => o.text).sort().join("|");
+
+                    if (currentHash !== lastPoliceHash) {
+                        lastPoliceHash = currentHash;
+                        let correctOption = options.find(o => dictionary.includes(o.text));
+
+                        if (!correctOption) {
+                            for (const opt of options) {
+                                const apiRes = await fetchApiSuggestions(opt.text);
+                                if (apiRes.some(s => s.toLowerCase() === opt.text)) {
+                                    correctOption = opt;
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (correctOption) {
+                            const el = correctOption.element;
+
+                            try { el.focus(); } catch (e) {}
+
+                            const pointerEvents = ["pointerover", "pointerenter", "pointermove", "pointerdown", "pointerup"];
+                            pointerEvents.forEach(evt => triggerEvent(el, evt, PointerEvent));
+
+                            const mouseEvents = ["mouseover", "mouseenter", "mousemove", "mousedown", "mouseup", "click"];
+                            mouseEvents.forEach(evt => triggerEvent(el, evt, MouseEvent));
+
+                            try { el.click(); } catch (e) {}
+                            try { HTMLButtonElement.prototype.click.call(el); } catch (e) {}
+                            try { HTMLElement.prototype.click.call(el); } catch (e) {}
+
+                            setTimeout(() => { isProcessing = false; }, 10);
+                            return;
+                        }
+                    }
+                }
+
+                const vaTuInput = document.querySelector("input.va-tu-answer-input_input__N9YZm");
+                const vaTuSpans = document.querySelectorAll(".va-tu-answer-input_character__GQCNk");
+
+                if (vaTuInput && vaTuSpans.length > 0) {
+                    const patternArr = Array.from(vaTuSpans).map(s => {
+                        if (s.classList.contains("va-tu-answer-input_hiddenChar__0Utpw") || s.textContent === "_") {
+                            return ".";
+                        }
+                        if (s.textContent === " " || s.textContent === "\u00A0") {
+                            return " ";
+                        }
+                        return escapeRegExp(s.textContent.toLowerCase());
+                    });
+
+                    const currentHash = patternArr.join("") + "_" + vaTuSpans.length;
+
+                    if (currentHash !== lastVaTuHash) {
+                        lastVaTuHash = currentHash;
+                        usedVaTuAnswers.clear();
+                    }
+
+                    const regex = new RegExp("^" + patternArr.join("") + "$", "i");
+                    let validAnswers = dictionary.filter(w => regex.test(w.trim()));
+                    let availableAnswers = validAnswers.filter(ans => !usedVaTuAnswers.has(ans));
+
+                    if (availableAnswers.length === 0) {
+                        const firstKnownChar = Array.from(vaTuSpans).map(s => s.textContent.trim()).find(t => t && t !== "_" && t !== "\u00A0") || "";
+                        if (firstKnownChar) {
+                            const apiRes = await fetchApiSuggestions(firstKnownChar);
+                            const apiValid = apiRes.filter(w => regex.test(w.trim()));
+                            availableAnswers = apiValid.filter(ans => !usedVaTuAnswers.has(ans));
+                        }
+                    }
+
+                    if (availableAnswers.length > 0) {
+                        const randomAnswer = availableAnswers[Math.floor(Math.random() * availableAnswers.length)];
+                        usedVaTuAnswers.add(randomAnswer);
+
+                        vaTuInput.focus();
+
+                        const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
+                        nativeInputValueSetter.call(vaTuInput, randomAnswer);
+
+                        vaTuInput.dispatchEvent(new Event("input", { bubbles: true }));
+                        vaTuInput.dispatchEvent(new Event("change", { bubbles: true }));
+
+                        await new Promise(resolve => setTimeout(resolve, 10));
+
+                        const keyEvents = ["keydown", "keypress", "keyup"];
+                        keyEvents.forEach(evt => triggerEvent(vaTuInput, evt, KeyboardEvent, { key: "Enter", code: "Enter", keyCode: 13, which: 13 }));
+
+                        const formElement = vaTuInput.closest("form");
+                        if (formElement) {
+                            try { formElement.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })); } catch (e) {}
+                            try { formElement.submit(); } catch (e) {}
+                        }
+
+                        setTimeout(() => { isProcessing = false; }, 10);
+                        return;
+                    }
+                }
+
+                const chars = document.querySelectorAll(".stick-answer-input_character__N56_X");
+                const slots = document.querySelectorAll(".stick-answer-input_answerSlot__AM1x1");
+
+                if (chars.length > 0 && slots.length > 0) {
+                    const rawCharList = Array.from(chars).map(el => ({
+                        originalText: el.textContent.trim(),
+                        char: el.textContent.trim().toLowerCase(),
+                        element: el,
+                        used: false
+                    }));
+
+                    const isWholeWordMode = rawCharList.some(c => c.originalText.length > 1 || /\s/.test(c.originalText));
+
+                    if (isWholeWordMode) {
+                        const unclicked = rawCharList.filter(c => {
+                            const opacity = window.getComputedStyle(c.element).opacity;
+                            const pointerEvents = window.getComputedStyle(c.element).pointerEvents;
+                            return opacity !== '0' && pointerEvents !== 'none';
+                        });
+
+                        if (unclicked.length > 0) {
+                            const target = unclicked[Math.floor(Math.random() * unclicked.length)];
+                            const el = target.element;
+                            try { el.focus(); } catch (e) {}
+                            const pointerEvents = ["pointerover", "pointerenter", "pointermove", "pointerdown", "pointerup"];
+                            pointerEvents.forEach(evt => triggerEvent(el, evt, PointerEvent));
+                            const mouseEvents = ["mouseover", "mouseenter", "mousemove", "mousedown", "mouseup", "click"];
+                            mouseEvents.forEach(evt => triggerEvent(el, evt, MouseEvent));
+                            try { el.click(); } catch (e) {}
+                            try { HTMLElement.prototype.click.call(el); } catch (e) {}
+                            await new Promise(resolve => setTimeout(resolve, 10));
+                            setTimeout(() => { isProcessing = false; }, 10);
+                            return;
+                        }
+                    } else {
+                        const charObjs = rawCharList;
+                        const currentHash = charObjs.map(c => c.char).sort().join('') + "_" + slots.length;
+
+                        if (currentHash !== lastAnagramHash) {
+                            lastAnagramHash = currentHash;
+                            usedAnagramAnswers.clear();
+                        }
+
+                        const expectedLength = slots.length;
+                        const availableCharsStr = charObjs.map(c => c.char).sort().join('');
+
+                        let validAnswers = dictionary.filter(w => {
+                            const wClean = w.replace(/\s+/g, '').toLowerCase();
+                            if (wClean.length !== expectedLength) return false;
+                            return wClean.split('').sort().join('') === availableCharsStr;
+                        });
+
+                        let availableAnswers = validAnswers.filter(ans => !usedAnagramAnswers.has(ans));
+
+                        if (availableAnswers.length === 0) {
+                            const upperItem = charObjs.find(c => c.originalText && c.originalText !== c.originalText.toLowerCase());
+                            const queryKey = upperItem ? upperItem.originalText : (charObjs[0]?.char || "");
+                            if (queryKey) {
+                                const apiRes = await fetchApiSuggestions(queryKey);
+                                const apiValid = apiRes.filter(w => {
+                                    const wClean = w.replace(/\s+/g, '').toLowerCase();
+                                    if (wClean.length !== expectedLength) return false;
+                                    return wClean.split('').sort().join('') === availableCharsStr;
+                                });
+                                availableAnswers = apiValid.filter(ans => !usedAnagramAnswers.has(ans));
+                            }
+                        }
+
+                        if (availableAnswers.length > 0) {
+                            const randomAnswer = availableAnswers[Math.floor(Math.random() * availableAnswers.length)];
+                            usedAnagramAnswers.add(randomAnswer);
+
+                            const answerClean = randomAnswer.replace(/\s+/g, '').toLowerCase();
+
+                            for (let i = 0; i < answerClean.length; i++) {
+                                const charTarget = answerClean[i];
+                                const match = charObjs.find(c => !c.used && c.char === charTarget);
+                                
+                                if (match) {
+                                    match.used = true;
+                                    const el = match.element;
+
+                                    try { el.focus(); } catch (e) {}
+
+                                    const pointerEvents = ["pointerover", "pointerenter", "pointermove", "pointerdown", "pointerup"];
+                                    pointerEvents.forEach(evt => triggerEvent(el, evt, PointerEvent));
+
+                                    const mouseEvents = ["mouseover", "mouseenter", "mousemove", "mousedown", "mouseup", "click"];
+                                    mouseEvents.forEach(evt => triggerEvent(el, evt, MouseEvent));
+
+                                    try { el.click(); } catch (e) {}
+                                    try { HTMLElement.prototype.click.call(el); } catch (e) {}
+
+                                    await new Promise(resolve => setTimeout(resolve, 5));
+                                }
+                            }
+
+                            setTimeout(() => { isProcessing = false; }, 10);
+                            return;
+                        }
+                    }
+                }
+
+                const wordElement = document.querySelector("a.word-detail_wordDetailWord__1DYml");
+                const inputElement = document.querySelector("input.word-link-answer-input_input__L6PK2");
+                const svgElement = document.querySelector("svg.lucide.lucide-send");
+
+                if (wordElement && inputElement && svgElement) {
+                    const buttonElement = svgElement.closest("button");
+                    if (buttonElement) {
+                        const currentQuestion = wordElement.textContent.trim();
+                        if (currentQuestion) {
+                            if (currentQuestion !== currentTargetQuestion) {
+                                currentTargetQuestion = currentQuestion;
+                                usedAnswers.clear();
+                            }
+
+                            const words = currentQuestion.split(/\s+/);
+                            const lastWord = words[words.length - 1].toLowerCase();
+
+                            let validAnswers = dictionary.filter(phrase => {
+                                const phraseWords = phrase.toLowerCase().split(/\s+/);
+                                return phraseWords[0] === lastWord;
+                            });
+
+                            let availableAnswers = validAnswers.filter(ans => !usedAnswers.has(ans));
+
+                            if (availableAnswers.length === 0) {
+                                const apiRes = await fetchApiSuggestions(lastWord);
+                                const apiValid = apiRes.filter(phrase => {
+                                    const phraseWords = phrase.toLowerCase().split(/\s+/);
+                                    return phraseWords[0] === lastWord;
+                                });
+                                availableAnswers = apiValid.filter(ans => !usedAnswers.has(ans));
+                            }
+
+                            if (availableAnswers.length > 0) {
+                                const randomAnswer = availableAnswers[Math.floor(Math.random() * availableAnswers.length)];
+                                usedAnswers.add(randomAnswer);
+
+                                inputElement.focus();
+
+                                const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
+                                nativeInputValueSetter.call(inputElement, randomAnswer);
+
+                                inputElement.dispatchEvent(new Event("input", { bubbles: true }));
+                                inputElement.dispatchEvent(new Event("change", { bubbles: true }));
+
+                                await new Promise(resolve => setTimeout(resolve, 10));
+
+                                try { buttonElement.focus(); } catch (e) {}
+
+                                const pointerEvents = ["pointerover", "pointerenter", "pointermove", "pointerdown", "pointerup"];
+                                pointerEvents.forEach(evt => triggerEvent(buttonElement, evt, PointerEvent));
+
+                                const mouseEvents = ["mouseover", "mouseenter", "mousemove", "mousedown", "mouseup", "click", "dblclick", "contextmenu"];
+                                mouseEvents.forEach(evt => triggerEvent(buttonElement, evt, MouseEvent));
+
+                                const keyEvents = ["keydown", "keypress", "keyup"];
+                                keyEvents.forEach(evt => triggerEvent(buttonElement, evt, KeyboardEvent, { key: "Enter", code: "Enter", keyCode: 13 }));
+                                keyEvents.forEach(evt => triggerEvent(buttonElement, evt, KeyboardEvent, { key: " ", code: "Space", keyCode: 32 }));
+
+                                try {
+                                    if (typeof buttonElement.setPointerCapture === "function") {
+                                        buttonElement.setPointerCapture(1);
+                                    }
+                                } catch (e) {}
+
+                                try {
+                                    if (typeof buttonElement.releasePointerCapture === "function") {
+                                        buttonElement.releasePointerCapture(1);
+                                    }
+                                } catch (e) {}
+
+                                try { buttonElement.click(); } catch (e) {}
+                                try { HTMLButtonElement.prototype.click.call(buttonElement); } catch (e) {}
+                                try { HTMLElement.prototype.click.call(buttonElement); } catch (e) {}
+
+                                const formElement = buttonElement.closest("form");
+                                if (formElement) {
+                                    try { formElement.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })); } catch (e) {}
+                                    try { formElement.submit(); } catch (e) {}
+                                }
+                            }
+                        }
+                    }
+                }
+
+                setTimeout(() => { isProcessing = false; }, 20);
+
+            } catch (error) {
+                isProcessing = false;
+            }
+        };
+
+
+        // Auto: vào rank card nếu thấy → bật Ngẫu nhiên (không cần bấm mode)
+        (async function autoStart() {
+            await new Promise(function(r) { setTimeout(r, 700); });
+            var rankSels = [
+                "div.main:nth-of-type(4) > div.main-center > div.page_mainContent__NQxPz:nth-of-type(1) > div.page_modeGridWrapper__J8Eq9:nth-of-type(3) > div.page_modeGrid__nPjbC > a.page_modeCard__bzgue.page_modeCoral__HD18C:nth-of-type(2)",
+                "a.page_modeCard__bzgue.page_modeCoral__HD18C",
+                "a[class*='modeCoral']"
+            ];
+            for (var i = 0; i < rankSels.length; i++) {
+                var el = document.querySelector(rankSels[i]);
+                if (el) {
+                    var st = window.getComputedStyle(el);
+                    var rr = el.getBoundingClientRect();
+                    if (st.display !== "none" && rr.width > 2 && rr.height > 2) {
+                        try { el.click(); } catch (e) {}
+                        statusText.textContent = "Đã vào xếp hạng";
+                        statusText.style.color = "#0ff";
+                        await new Promise(function(r) { setTimeout(r, 900); });
+                        break;
+                    }
+                }
+            }
+            activeMode = modes[0];
+            statusText.textContent = "Auto Play: " + modes[0].title;
+            statusText.style.color = "#0f0";
+            grid.style.display = "none";
+            stopBtn.style.display = "block";
+        })();
+
+        const observer = new MutationObserver(processQuestion);
+        observer.observe(document.body, { childList: true, subtree: true });
+
+        setInterval(processQuestion, 50);
+
+    } catch (error) {
+        console.error("[NoituBot]", error);
+        try {
+            var err = document.createElement("div");
+            err.textContent = "NoituBot lỗi: " + (error && error.message);
+            err.style.cssText = "position:fixed;top:8px;left:8px;z-index:99999999;background:#a00;color:#fff;padding:10px;border-radius:8px;font:12px sans-serif";
+            document.body.appendChild(err);
+        } catch (e2) {}
     }
-  }
-
-  async function tick() {
-    if (!running || busy) return;
-    busy = true;
-    try {
-      if (!inGame()) {
-        tryEnterRank();
-        tryLobbyMode();
-      } else {
-        await answerWordLink();
-        await answerExtras();
-      }
-    } catch (_) {}
-    busy = false;
-  }
-
-  // ── level / xoay acc ──
-  async function levelLoop() {
-    while (true) {
-      await sleep(12000);
-      if (!running) continue;
-      const acc = getActive();
-      if (!acc || !acc.accessToken) continue;
-      try {
-        const u = await apiUser(acc.code, acc.accessToken);
-        acc.level = String(u.level ?? acc.level);
-        acc.xp = String(u.experiencePoints ?? 0);
-        acc.name = u.name || acc.name;
-        upsert(acc);
-        if ((parseInt(acc.level) || 1) >= TARGET_LV) {
-          const next = accounts.find((a) => (parseInt(a.level) || 1) < TARGET_LV);
-          if (next && next.code !== acc.code) {
-            await switchAcc(next);
-            setStatus("Xoay acc → " + (next.name || next.code).slice(0, 14));
-          } else if (!next) {
-            setStatus("Tất cả acc ≥ lv" + TARGET_LV);
-          }
-        }
-      } catch (_) {}
-    }
-  }
-
-  // ── boot ──
-  loadAcc();
-  buildUI();
-  await loadDict();
-
-  if (!accounts.length) {
-    try {
-      const d = await apiCreate();
-      upsert({
-        code: d.code,
-        accessToken: d.accessToken,
-        refreshToken: d.refreshToken,
-        name: d.name || "",
-        level: String(d.level || 1),
-        xp: "0",
-      });
-      activeCode = d.code;
-      saveAcc();
-      applyToken(accounts[0]);
-    } catch (e) {
-      setStatus("Bấm + Tạo acc (" + e.message + ")");
-    }
-  } else {
-    const a = getActive();
-    if (a) applyToken(a);
-  }
-
-  setStatus("Chạy · mode Ngẫu nhiên");
-  setInterval(tick, 80);
-  new MutationObserver(() => {
-    if (running) tick();
-  }).observe(document.body, { childList: true, subtree: true });
-  levelLoop();
 })();
