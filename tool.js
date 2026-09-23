@@ -1,5 +1,15 @@
 (async () => {
+    const __waitBody = () => new Promise((resolve) => {
+        if (document.body) return resolve();
+        const t = setInterval(() => {
+            if (document.body) { clearInterval(t); resolve(); }
+        }, 50);
+    });
+    await __waitBody();
     try {
+        if (window.__NOITU_BOT_LOADED__) return;
+        window.__NOITU_BOT_LOADED__ = true;
+
         const styleSheet = document.createElement("style");
         styleSheet.textContent = `
             @keyframes rainbowBorderAnim {
@@ -768,9 +778,11 @@
         console.error("[NoituBot]", error);
         try {
             var err = document.createElement("div");
-            err.textContent = "NoituBot lỗi: " + (error && error.message);
-            err.style.cssText = "position:fixed;top:8px;left:8px;z-index:99999999;background:#a00;color:#fff;padding:10px;border-radius:8px;font:12px sans-serif";
-            document.body.appendChild(err);
+            err.id = "noitu-bot-err";
+            err.textContent = "NoituBot lỗi: " + (error && (error.stack || error.message || error));
+            err.style.cssText = "position:fixed;top:8px;left:8px;right:8px;z-index:2147483647;background:#a00;color:#fff;padding:12px;border-radius:8px;font:12px/1.4 monospace;white-space:pre-wrap;max-height:40vh;overflow:auto";
+            (document.body || document.documentElement).appendChild(err);
         } catch (e2) {}
     }
-})();
+})().catch(function(e){ console.error("[NoituBot outer]", e); });
+
