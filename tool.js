@@ -78,7 +78,7 @@
             marginBottom: '4px',
             fontWeight: 'bold'
         });
-        statusText.textContent = 'Auto Play: OFF';
+        statusText.textContent = 'Auto Play: Ngẫu nhiên';
 
         const grid = document.createElement('div');
         Object.assign(grid.style, {
@@ -138,11 +138,19 @@
         });
 
         stopBtn.onclick = () => {
-            activeMode = null;
-            statusText.textContent = 'Auto Play: OFF';
-            statusText.style.color = '#aaa';
-            grid.style.display = 'grid';
-            stopBtn.style.display = 'none';
+            if (activeMode) {
+                activeMode = null;
+                statusText.textContent = 'Auto Play: OFF';
+                statusText.style.color = '#aaa';
+                stopBtn.textContent = '▶ CHẠY';
+                stopBtn.style.background = '#0a4';
+            } else {
+                activeMode = modes.find(m => m.title === "Ngẫu nhiên") || modes[modes.length - 1];
+                statusText.textContent = 'Auto Play: ' + activeMode.title;
+                statusText.style.color = '#0f0';
+                stopBtn.textContent = '⏹ DỪNG';
+                stopBtn.style.background = '#800000';
+            }
         };
 
 
@@ -246,11 +254,15 @@
         }, 15000);
         renderAccs();
 
+        grid.style.display = "none"; // không chọn mode — cố định Ngẫu nhiên
+        stopBtn.style.display = "block";
         body.appendChild(statusText);
-        body.appendChild(grid);
         body.appendChild(stopBtn);
         body.appendChild(accBox);
         body.appendChild(createAccBtn);
+        // activeMode sớm: Ngẫu nhiên
+        activeMode = modes.find(m => m.title === "Ngẫu nhiên") || modes[modes.length - 1];
+        statusText.style.color = "#0f0";
 
         popup.appendChild(header);
         popup.appendChild(body);
@@ -751,9 +763,9 @@
                     break;
                 }
             }
-            // Bật mode mặc định Nối Từ (user có thể chọn 2 mode kia trên panel)
-            activeMode = modes[0];
-            statusText.textContent = "Auto Play: " + modes[0].title;
+            // Mặc định Ngẫu nhiên — không cần chọn mode
+            activeMode = modes.find(m => m.title === "Ngẫu nhiên") || modes[modes.length - 1];
+            statusText.textContent = "Auto Play: " + activeMode.title;
             statusText.style.color = "#0f0";
             grid.style.display = "none";
             stopBtn.style.display = "block";
